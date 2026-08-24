@@ -41,9 +41,14 @@
 
 - 每个插件是**独立 git 仓库**（独立远程、独立 `package.json`），
   包名遵循 `@deepseek-ai/<插件名>` 命名空间。
-- 插件最少包含：`index.js`（plain JavaScript，无构建步骤）、
-  `cordis.yml`（opt-in overlay，挂载方式 `dsh web --patch <插件>/cordis.yml`）、
-  `README.md` / `README.zh.md`、`LICENSE`。
+- 插件目录结构遵循官方 bundle 架构（上游 `docs/user/develop/basic/publish.md`）：
+  `index.js`（插件模块，plain JavaScript 无构建步骤）、
+  `cordis.patch.yml`（patch 层；层内按**包名**引用插件，不用相对路径）、
+  `README.md` / `README.cn.md`、`LICENSE`。
+- `package.json` 必须声明 `dsh.bundle.patch`（指向 `./cordis.patch.yml`）：
+  缺少该声明时 `dsh plugin add` 只当普通依赖安装，不激活 patch 层。
+- 安装：`dsh plugin --profile <profile> add github:falling-ts/<插件>`（或本地路径）；
+  开发期可不安装，直接 `dsh web --patch <插件>/cordis.patch.yml` 挂载。
 - 插件是**纯 Host 监听器**：不引入 timer、内存态存储或 Client UI；
   各插件自身的规则见其 `AGENTS.md`（英文）。
 - 各插件 `AGENTS.md` 中的 `../AGENTS.md`（collection conventions）指向本文件。
