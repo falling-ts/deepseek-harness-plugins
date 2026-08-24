@@ -50,7 +50,7 @@
 - 安装：`dsh plugin --profile <profile> add github:falling-ts/<插件>`（或本地路径）；
   开发期可不安装，直接 `dsh web --patch <插件>/cordis.patch.yml` 挂载。
 - 插件是**纯 Host 监听器**：不引入 timer、内存态存储或 Client UI；
-  各插件自身的规则见其 `AGENTS.md`（英文）。
+  各插件自身的规则见其 `AGENTS.md`（中文）。
 - 各插件 `AGENTS.md` 中的 `../AGENTS.md`（collection conventions）指向本文件。
 - 插件仓库内的 `CLAUDE.md` 固定只写一行 `@AGENTS.md`（引用本插件的 AGENTS.md），
   规则内容一律维护在 AGENTS.md，避免双写。
