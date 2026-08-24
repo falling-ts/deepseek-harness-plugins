@@ -10,7 +10,7 @@
 | 路径 | 性质 | 远程 |
 |------|------|------|
 | `deepseek-harness/` | 子模块（上游 monorepo：`apps/cli`、`apps/web`、`packages/*`、`examples/*`，pnpm workspace） | `git@github.com:deepseek-ai/deepseek-harness.git`（branch `master`） |
-| `dsh-compact/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-compact.git`（branch `main`） |
+| `dsh-force-compact/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-force-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-force-compact.git`（branch `main`） |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
 | `.idea/`、`*.log` | 已忽略（IDE 配置；`harness-server.sh` 运行日志） | — |
 
@@ -37,7 +37,7 @@
   避免残留文件漏提交或子模块指针忘记移动。
 - 提交后**必须**推送到对应远程跟踪分支，不留本地未推送提交。
 
-## 插件集合约定（适用于 `dsh-compact/` 及同级独立插件）
+## 插件集合约定（适用于 `dsh-force-compact/` 及同级独立插件）
 
 - 每个插件是**独立 git 仓库**（独立远程、独立 `package.json`），
   包名遵循 `@falling-ts/<插件名>` 命名空间（与 git 仓库归属一致，可 `pnpm publish`）。
