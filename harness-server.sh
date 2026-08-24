@@ -5,11 +5,12 @@
 # Usage:
 #   bash harness-server.sh                # default port 3080
 #   PORT=8123 bash harness-server.sh      # custom port
-#   WAIT=300 bash harness-server.sh       # longer startup wait
+#   WAIT=60 bash harness-server.sh        # longer startup wait (default 10s;
+#                                         # a 10s miss is treated as a failure)
 #
 # Steps:
 #   [1/3] kill whatever is listening on the port
-#   [2/3] start `pnpm dsh web` in the background (nohup, output -> $LOG)
+#   [2/3] start `pnpm dsh web` in the background (nohup, output appended to $LOG)
 #   [3/3] wait up to $WAIT seconds for the port; on failure dump the log tail
 #
 # Notes:
@@ -26,7 +27,10 @@ set -u
 
 PORT="${PORT:-3080}"
 BIND_HOST="${BIND_HOST:-127.0.0.1}"
-WAIT_SECS="${WAIT:-120}"
+# Default timeout is short on purpose: if the port does not come up within 10s,
+# treat the start as a failure (exiting non-zero) instead of blocking for minutes.
+# Override with WAIT=<seconds> for genuinely slow machines (cold pnpm install, etc.).
+WAIT_SECS="${WAIT:-10}"
 
 # DSH_HOME defaults to the DSH home dir so plugins that write diagnostic
 # markers (e.g. @hytime/dsh-thinking-effort -> thinking-effort-loaded.json)
@@ -41,7 +45,7 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/deepseek-harness" && pwd)"
 
-LOG="$(pwd)/dsh-web-${PORT}.log"   # log goes to the current directory (at invocation time)
+LOG="$(pwd)/dsh-web-${PORT}.log"   # log goes to the current directory (at invocation time); appended (>>) on each start
 
 echo "[1/3] Stopping existing service on port $PORT..."
 PIDS="$(netstat -ano 2>/dev/null | tr -d '\r' | grep -E "[:.]${PORT}[[:space:]]" | grep -iE 'LISTEN' | awk '{print $NF}' | sed 's/\/.*//' | sort -u)"
@@ -61,7 +65,7 @@ fi
 echo "[2/3] Starting pnpm dsh web (--host $BIND_HOST --port $PORT) in the background..."
 cd "$ROOT" || { echo "ERROR: repo root not found at $ROOT"; exit 1; }
 command -v pnpm >/dev/null 2>&1 || { echo "ERROR: pnpm not found on PATH"; exit 1; }
-echo Y | nohup pnpm dsh web --host "$BIND_HOST" --port "$PORT" --no-open > "$LOG" 2>&1 &
+echo Y | nohup pnpm dsh web --host "$BIND_HOST" --port "$PORT" --no-open >> "$LOG" 2>&1 &
 SRV_PID=$!
 echo "      (server PID $SRV_PID, log: $LOG)"
 
