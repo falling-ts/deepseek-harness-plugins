@@ -1,0 +1,5 @@
+# IDE
+.idea/
+
+# Runtime logs (harness-server.sh writes dsh-web-<port>.log to the current directory)
+*.log
