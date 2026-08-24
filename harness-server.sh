@@ -20,11 +20,25 @@
 #     answer, a detached (no-stdin) pnpm hangs on that prompt forever and
 #     the port never opens.
 #   - `--no-open` suppresses the automatic browser launch (background start).
+#   - `DSH_HOME` defaults to the DSH home dir (~/.dsh) so plugin diagnostic
+#     markers (e.g. thinking-effort-loaded.json) land there, not the repo.
 set -u
 
 PORT="${PORT:-3080}"
 BIND_HOST="${BIND_HOST:-127.0.0.1}"
 WAIT_SECS="${WAIT:-120}"
+
+# DSH_HOME defaults to the DSH home dir so plugins that write diagnostic
+# markers (e.g. @hytime/dsh-thinking-effort -> thinking-effort-loaded.json)
+# write there instead of the process cwd (repo root).
+# Windows Git Bash: $USERPROFILE is the native Windows path (Node-safe);
+# Linux: $HOME.
+if [ -n "${USERPROFILE:-}" ]; then
+  export DSH_HOME="${DSH_HOME:-$USERPROFILE/.dsh}"
+else
+  export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
+fi
+
 ROOT="$(cd "$(dirname "$0")/deepseek-harness" && pwd)"
 
 LOG="$(pwd)/dsh-web-${PORT}.log"   # log goes to the current directory (at invocation time)
