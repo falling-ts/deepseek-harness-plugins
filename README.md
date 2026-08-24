@@ -12,7 +12,7 @@ files.
 | Path | Kind | Remote |
 |------|------|--------|
 | `deepseek-harness/` | Submodule — upstream monorepo (`apps/cli`, `apps/web`, `packages/*`, `examples/*`; pnpm workspaces) | `git@github.com:deepseek-ai/deepseek-harness.git` (branch `master`) |
-| `dsh-compact/` | Submodule — standalone Cordis plugin [`@falling-ts/dsh-compact`](dsh-compact/README.md): auto-compacts a session's history into a summary node at every `session/flush` | `git@github.com:falling-ts/dsh-compact.git` (branch `main`) |
+| `dsh-force-compact/` | Submodule — standalone Cordis plugin [`@falling-ts/dsh-force-compact`](dsh-force-compact/README.md): compacts a session's history at every `session/flush` (own region policy + LLM summarizer, durable mutation delegated to the `compaction` service) | `git@github.com:falling-ts/dsh-force-compact.git` (branch `main`) |
 | `harness-server.sh` | Cross-platform (Linux + Windows Git Bash) launcher for `pnpm dsh web` | — |
 
 ## Getting started
