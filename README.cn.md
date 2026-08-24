@@ -10,7 +10,7 @@ DeepSeek Harness 插件集的工作区容器（workspace container）。本仓�
 | 路径 | 性质 | 远程 |
 |------|------|------|
 | `deepseek-harness/` | 子模块——上游 monorepo（`apps/cli`、`apps/web`、`packages/*`、`examples/*`；pnpm workspaces） | `git@github.com:deepseek-ai/deepseek-harness.git`（branch `master`） |
-| `dsh-compact/` | 子模块——独立 Cordis 插件 [`@deepseek-ai/dsh-compact`](dsh-compact/README.md)：每次 `session/flush` 时把会话历史自动压缩为摘要节点 | `git@github.com:falling-ts/dsh-compact.git`（branch `main`） |
+| `dsh-compact/` | 子模块——独立 Cordis 插件 [`@falling-ts/dsh-compact`](dsh-compact/README.md)：每次 `session/flush` 时把会话历史自动压缩为摘要节点 | `git@github.com:falling-ts/dsh-compact.git`（branch `main`） |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）的 `pnpm dsh web` 启动脚本 | — |
 
 ## 快速开始

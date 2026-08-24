@@ -10,7 +10,7 @@
 | 路径 | 性质 | 远程 |
 |------|------|------|
 | `deepseek-harness/` | 子模块（上游 monorepo：`apps/cli`、`apps/web`、`packages/*`、`examples/*`，pnpm workspace） | `git@github.com:deepseek-ai/deepseek-harness.git`（branch `master`） |
-| `dsh-compact/` | 子模块（独立 Cordis 插件 `@deepseek-ai/dsh-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-compact.git`（branch `main`） |
+| `dsh-compact/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-compact.git`（branch `main`） |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
 | `.idea/`、`*.log` | 已忽略（IDE 配置；`harness-server.sh` 运行日志） | — |
 
@@ -40,7 +40,7 @@
 ## 插件集合约定（适用于 `dsh-compact/` 及同级独立插件）
 
 - 每个插件是**独立 git 仓库**（独立远程、独立 `package.json`），
-  包名遵循 `@deepseek-ai/<插件名>` 命名空间。
+  包名遵循 `@falling-ts/<插件名>` 命名空间（与 git 仓库归属一致，可 `pnpm publish`）。
 - 插件目录结构遵循官方 bundle 架构（上游 `docs/user/develop/basic/publish.md`）：
   `index.js`（插件模块，plain JavaScript 无构建步骤）、
   `cordis.patch.yml`（patch 层；层内按**包名**引用插件，不用相对路径）、
