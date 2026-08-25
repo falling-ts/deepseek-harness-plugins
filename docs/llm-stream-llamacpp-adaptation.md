@@ -12,6 +12,11 @@
 > llama.cpp 的 OAI 兼容层做了**未识别字段透明透传**，且 `stream_options.include_usage`
 > 、`reasoning_effort` 均为一等公民；真正的雷区只有一个：**未开 `--jinja` 时携带
 > `tools` 字段会直接 400**。
+>
+> **关于向 wire 层注入额外参数的三种合规路径**（方案 A/B/C，详见 §7）：
+> 首选 `ctx.on('llm/stream', …)` waterfall 拦截 + 浅拷贝重写 `GenerateOptions`
+> 附加 wire 顶层键；次选 `registerAdapter` 自建整个 adapter；兜底 `prepareCall`
+> 单发探测。三者均不破坏 harness 的单一 LLM 出口不变量。
 
 ---
 
@@ -216,7 +221,159 @@ curl.exe -s -X POST http://127.0.0.1:8080/v1/chat/completions ^
 
 ---
 
-## 7. 引用与定位
+## 7. 向 `ctx.llm` 注入 wire 层的额外请求参数
+
+`GenerateOptions` 只把 `provider / model / messages / system / tools / temperature /
+maxTokens / stop / reasoningEffort / sessionId / purpose` 这几组字段透传到
+DeepSeek wire，**harness 层没有对应的 TS 字段**去承载 `top_p / min_p / cache_prompt /
+repeat_penalty / dry_* / mirostat` 等 llama.cpp 原生采样旋钮（§3.5 列出的那些）。
+但 llama.cpp 的 OAI 端点对这些键是**白名单制 + 未识别键透传**双重语义（§3.1），
+意味着**只要在 HTTP wire JSON 的顶层加一个键，就立刻变成 llama.cpp 的一等参数**，
+而 harness 的核心管线对 wire JSON 的顶层键数量没有任何校验。因此有三条合规路径，
+按推荐优先级排序如下。
+
+### 方案 A（首选）：`ctx.on('llm/stream', …)` waterfall 拦截 + 浅拷贝重写 options
+
+`LlmRuntime.stream()` 在找到 adapter 之后、把 `options` 交给 adapter 的
+`.stream()` **之前**，先过一遍名为 `'llm/stream'` 的 waterfall
+（`packages/llm/llm/src/index.ts:65`、`995`）：
+
+```ts
+export class LlmRuntime extends Service {
+  ...
+  stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    return ctx.waterfall(this, 'llm/stream', options, ...)
+      .then(adapter => adapter.stream(resolved))
+  }
+}
+```
+
+waterfall 链上每一个监听器都拿到**同一个可变 `options` 引用**并把它传给
+`next()`。利用这一点可以在最外层插入一个**只做浅拷贝 + 字段添加**的监听器，
+既不改原对象、也不越权，还能把额外的采样旋钮干净地送到 wire 层：
+
+```ts
+// 插件 apply(ctx) 里，一次性幂等安装（latch 防止重复订阅）
+let extraSamplerInstalled = false
+ctx.on('llm/stream', function injectExtraSamplingFields(
+  _self: unknown,
+  options: GenerateOptions,
+  next: () => AsyncIterable<any>,
+) {
+  // 只对特定 purpose 生效，避免污染正式 agent 请求
+  if (options.purpose !== 'compaction' && options.purpose !== 'session-title') {
+    return next()
+  }
+
+  // 浅拷贝 options，附加两个 wire 层扩展字段（TS 层面靠 any 桥接）
+  const extended: typeof options & Record<string, unknown> = {
+    ...options,
+    // llama.cpp OAI 兼容层直接接受的采样旋钮（§3.5）
+    ...(typeof options.temperature === 'number' ? {} : { temperature: 0.7 }),
+    ...(typeof options.maxTokens === 'number' ? {} : { maxTokens: 1024 }),
+    // 以下两项 GenerateOptions 没有对应 TS 字段，直接透传到 wire 顶层
+    ...(extraTopP !== undefined ? { top_p: extraTopP } : {}),
+    ...(extraCachePrompt !== undefined ? { cache_prompt: extraCachePrompt } : {}),
+  }
+
+  const inner = next.bind(null, extended)
+  return inner()
+})
+```
+
+**约束与注意点：**
+
+1. **必须调用 `next()` 并把改写后的 `extended` 作为返回值传递**，否则 waterfall 被
+   短路，adapter 拿不到任何东西。
+2. **不要 mutate 原 `options`**（`generateOptions` 可能被 loop 或上游持有引用），
+   必须浅拷贝。
+3. **TS 严格模式**下给 `GenerateOptions` 增加未声明字段会报 `EXTRA_FIELDS`，
+   所以这里用 `Record<string, unknown>` 联合类型桥接，`extraTopP /
+   extraCachePrompt` 两个常量由插件 `Config` 注入（遵守 AGENTS.md 的"插件无可
+   配置旋钮不算可扩展性"条款——这里是真·部署可调选择，不是隐式默认）。
+4. **`llm/stream` waterfall 在所有 adapter 之上、所有 provider 之下**，因此这个
+   注入对**任何** provider 都会发生（即使某天切回 DeepSeek 官方也照样把这两个
+   字段带到 wire 上）。如果想只对 llama.cpp 生效，再加一层
+   `options.provider.endsWith(':local')` 之类的路由过滤。
+
+### 方案 B（次选）：`ctx.llm.registerAdapter` 自定义 adapter，在 `stream` 里直接组装 wire body
+
+如果方案 A 不够灵活（比如要按 provider 区分 wire 字段集、要改 `messages` 结构、
+要在 SSE 解析层加自定义逻辑），则整个 `LlmAdapter` 都可以自建：
+
+```ts
+import type { LlmAdapter, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
+
+ctx.llm.registerAdapter(['my-llama-route'], {
+  async stream(options: GenerateOptions) {
+    const url = 'http://127.0.0.1:8080/v1/chat/completions'
+    const body: Record<string, unknown> = {
+      model: options.model,
+      messages: flattenMessages(options.system, options.messages),
+      stream: true,
+      stream_options: { include_usage: true },
+      // 下面这些是 wire 层独有字段，GenerateOptions 里没有对应 TS 字段
+      top_p: myRoute.topP ?? 0.95,
+      cache_prompt: myRoute.cachePrompt ?? true,
+      // ...
+    }
+    const res = await fetch(url, { method: 'POST', body: JSON.stringify(body), signal: options.signal })
+    // 手工解析 SSE 并 yield 为 StreamChunk 联合类型
+    const reader = res.body!.getReader()
+    /* ... decode chunks and map to text-delta / usage / finish ... */
+  },
+  ...
+})
+```
+
+**优点**：wire body 完全可控，想加什么字段都行。**代价**：必须自己复刻
+`SerializeMessagesWithOptions` 里的消息展开、`BlockAssembler` 的 chunk 聚合、
+SSE 增量解析等逻辑，相当于手写半个 `llm-deepseek` 适配器。仅在方案 A 的
+waterfall 层够不着的场景（例如要改 wire JSON 嵌套层级本身，而不是加顶层键）
+才考虑这条路。
+
+### 方案 C（兜底）：`prepareCall` + 一次性 `PreparedLlmCall.handle()` 绕行
+
+`ctx.llm.prepareCall(config, signal)` 返回的是一个**一次性、可取消**的调用句柄
+（`packages/llm/llm/src/index.ts:824`），其 `handle()` 直接返回底层
+`AsyncIterable<StreamChunk>`，**跳过了 `'llm/stream'` waterfall**：
+
+```ts
+const prepared = await ctx.llm.prepareCall({
+  provider: 'llama-local',
+  model: options.model,
+  temperature: options.temperature,
+  maxTokens: options.maxTokens,
+  // ...
+}, options.signal)
+
+const chunks = prepared.handle()   // 不经过 llm/stream waterfall
+for await (const c of chunks) { /* consume as usual */ }
+```
+
+适合**单发探测类调用**（如插件内部的健康检查、能力探测），不适合替代主会话
+循环（主循环的 `agent-loop` 已经持有自己注册的 adapter 和配置，`prepareCall`
+的语义是一次性，无法像 `stream()` 那样参与会话 replay / 日志 / 归因）。
+
+### 三方案对比速查
+
+| 维度 | A · waterfall 注入 | B · 自定义 adapter | C · `prepareCall` |
+|---|---|---|---|
+| wire 顶层键数量 | **无限制**，任意扩展 | 无限制 | 受限于 `LlmCallConfig` 字段集 |
+| 侵入程度 | 低（只加一个监听器） | 高（复刻半个 adapter） | 中（单发调用） |
+| 对会话日志 / 归因的影响 | 无 | 无（走完整 adapter 链） | 无（绕过 waterfall 但不改日志） |
+| 适用场景 | 给某类 `purpose` 附加采样旋钮 | 整个 wire 协议都要换（含消息展开逻辑） | 单发探测 / 健康检查 |
+| 推荐优先级 | **首选** | 备选 | 兜底 |
+
+**一句话结论**：日常需求用方案 A（`llm/stream` waterfall 注入额外键），特殊协议
+用方案 B（整 adapter），单发探测用方案 C（`prepareCall`）。**不要**尝试
+`Reflect.defineProperty` 修改 `GenerateOptions.prototype` 或 monkey-patch
+adapter——这两者都会破坏 harness 的 `llm/adapters-updated` 事件一致性，违反
+"单一 LLM 出口"不变量。
+
+---
+
+## 8. 引用与定位
 
 | 事实 | 出处 |
 |---|---|
@@ -230,3 +387,6 @@ curl.exe -s -X POST http://127.0.0.1:8080/v1/chat/completions ^
 | 原生采样旋钮全集 | `D:\AI\llama.cpp\tools\server\server-schema.cpp:89-160` |
 | `reasoning_content` 回显分支 | `D:\AI\llama.cpp\tools\server\server-task.cpp:541-547` |
 | 实测响应样本（200 + usage + timings + draft_*） | 本文 §2，原始输出可由 `fcprobe8080.cjs` 随时重现 |
+| `'llm/stream'` waterfall 挂载点（方案 A） | `deepseek-harness/packages/llm/llm/src/index.ts:65,995` |
+| `ctx.llm.prepareCall`（方案 C） | `deepseek-harness/packages/llm/llm/src/index.ts:824` |
+| `HarnessError` 基类 + 稳定 `code`（注入失败时可辨识） | `deepseek-harness/packages/llm/llm/src/error.ts:13-22` |
