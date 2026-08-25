@@ -76,6 +76,70 @@
 - **边界**：承载本 GUI 的主实例在 **3080**（见上节警告），切勿对其套用上述随意重启；
   重启 3080 属于用户决定。
 
+## 后端接口全景（精华 · 一个不漏）
+
+harness Web 后端的**客户端可达接口**分四个面 + 一个下载通道。权威来源与各方法详细签名字段
+见 [docs/backend-api-catalogue.zh.md](docs/backend-api-catalogue.zh.md)（跨源核对总表）；本节为浓缩。
+
+### 四类物理通道
+
+| 面 | 通道 / 形式 | 规模 |
+|----|-------------|------|
+| S1 一元 RPC | `POST /api/<ns>.<method>`（**句点**分隔），信封 `{"type":"client-request","rpcId","method","payload"}` | **74 个方法**（`RpcMethodMap` 编译期锁定路由表） |
+| S2 流式下行 | `GET /api/events.mux`、`/api/events.host`（裸 GET=SSE；浏览器强制 WS 升级，否则 426） | 2 条流 + `MuxFrame`(10 变体) + `HostFrame`(10 变体) |
+| S3 应答回调 | `POST /api/respond`（`client-response`，**回显**发起方 rpcId，不重铸） | 承载审批 / 问答应答 |
+| S4 网关命名空间 | `POST /api/<ns>/<method>`（**斜杠**分隔段，经 Typert 网关派发） | **7 个命名空间 ≈ 25 个 `@Remote` 方法** |
+| 下载 | `GET /api/session.export`（无信封，宿主独占，不进浏览器 IApiClient） | ZIP 导出 |
+
+> 易混淆点：S1 用**句点**、S4 用**斜杠**；两者同 `/api` 前缀但派发机制不同。
+> `method` 字段必须与 URL 末段逐字一致（句点面写斜杠会被 `bad-request` 拒绝）。
+
+### S1 — 74 个一元方法（按命名空间）
+
+`session.*`：list, search, create, history, models, selectModel, rename, fork, prompt, attachment, updateQueue, cancel
+（12 个）· `subagent.*`：list, history, prompt, interrupt（4）· `host.*`：describe, pickDirectory,
+listDirectory, createDirectory, openPath（5）· `workspace.*`：list, create, rename, delete, insertBefore,
+insertSessionBefore, archiveSession（7）· `skill.*`：list（1）· `agentPreset.*`：list, select, read, copy,
+openDocument, remove（6）· `goal.*`：create, edit, pause, resume, complete, clear（6）· `settings.*`：
+describe, openDocument, update, replace, mutate（5）· `credentials.*`：describe, set, unset（3）· `llm.*`：
+providers, models, discoverModels（3）。合计 **74**。
+
+### S4 — 7 个网关命名空间（`@Remote` 标记的方法，斜杠形态）
+
+| wire 命名空间 | 拥有包 | 远程方法 |
+|---------------|--------|----------|
+| `commands` | `packages/interaction/commands` | list, execute |
+| `goals` | `packages/goal/goal` | create, edit, pause, resume, complete, clear |
+| `dynamicCordisRunner` | `packages/extensions/cordis-host-runner` | runHostHalf, getClientCode, resolveRequestRun, settleUserRun, stopFromPanel, syncInspectManifest, resolveInspectQuery, inventory, reportRenderFailure, reportClientGuardFailure, invoke, undefinedFromPanel |
+| `fileReferences` | `packages/context/file-reference` | list |
+| `sessionReferenceResolver` | `packages/context/session-reference` | candidates |
+| `pluginInventory` | `packages/host/plugin-inventory` | list |
+| `messageFeedback` | `packages/feedback/message-feedback` | list, put, delete |
+
+> 前端实测唯一出现的斜杠族就是 `messageFeedback/{list,put,delete}`。注意 `goals` 同时存在
+> 句点形态（S1 的 `goal.*`）与斜杠远程形态（S4），入口不同，勿混。
+
+### S3 — 应答（非独立 RPC，走 S2 流下发的 server-request 帧）
+
+`approval/requested` → 答 `ApprovalResponsePayload`（outcome: allowed-once/rejected）；
+`question/requested` → 答 `QuestionResponsePayload`。均以 `POST /api/respond` + 回显 rpcId 回应。
+
+### 11 个可转发宿主事件白名单（`API_REMOTE_FORWARDED_EVENTS`，`host/remote-event` 帧唯一承载）
+
+```
+agent-preset/selected   commands/change              credentials/reference-updated
+cordis/request-run      cordis/request-run-resolved  cordis/dynamic-package
+cordis/dynamic-retract  cordis/inspect-query         cordis/inspect-query-resolved
+llm/adapters-updated    settings/document-updated
+```
+
+新增一条 ＝ 在 `packages/api/remotes/src/remote-events.ts` 该数组加一行，别无他处。
+
+### 状态码 / 安全
+
+- 未知路径 **404**；body 非 JSON **400**；非 JSON media（POST）**415**；>300 MiB **413**；崩溃 **500**；未受信 **403**；浏览器裸 GET 事件流 **426**。业务错误永远 200（错误在 `result.{ok:false,error}`）。
+- **无鉴权令牌**，靠信任围栏（Host 回环/受信主机 + sec-fetch-site + Origin==Host）。一批**特权方法仅回环可达**（`settings.*`、`credentials.*`、`llm.discoverModels`、`agentPreset.read/copy/openDocument/remove`、`host.pickDirectory/openPath`）；`llm.providers`/`models` **不在**其中。
+
 ## 通过 wire 协议驱动一次对话（免 GUI 自动化）
 
 已验证可用的通道（PowerShell / 任意 HTTP 客户端皆可复现）：
@@ -141,3 +205,15 @@
   - **跨用户可移植的路径**：绝不在代码里硬编码绝对路径（如 `C:\Users\<x>\…`）。
     默认值用 `~/…` 模板，运行时经 `node:os.homedir()`（Windows 读 `USERPROFILE`）
     解析到每个用户各自的家目录，从而在不同机器 / 用户间自然迁移。
+
+## 测试对话要求：饱满上下文 / 高保真（在本工作区创建对话时生效）
+
+为确保测试对话的上下文**完整、高级、高保真**，凡在 `deepseek-harness-plugins` 目录
+工作区内**创建对话**时，都必须让所驱动的模型**主动学习当前项目**：
+
+- **反复、尽量完整地通读代码**（read / glob / grep 全量扫读源码、配置、文档），
+  而不是一次浅读——目的是把对话内容撑得**又多又实**，覆盖真实的项目结构与契约。
+- **每次都重申此要求**：无论是对话首轮还是后续延续，都再次要求"学习本项目 + 多读全代码"，
+  不让上下文随轮次衰减。
+- 由此产生的**大体积对话内容是预期效果**，不要为了省 token 而跳过读码环节。
+- 适用范围限定为**测试 / 探针对话**；日常普通任务仍按正常节奏，不强制刷量读码。
