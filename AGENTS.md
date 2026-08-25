@@ -11,6 +11,7 @@
 |------|------|------|
 | `deepseek-harness/` | 子模块（上游 monorepo：`apps/cli`、`apps/web`、`packages/*`、`examples/*`，pnpm workspace） | `git@github.com:deepseek-ai/deepseek-harness.git`（branch `master`） |
 | `dsh-force-compact/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-force-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-force-compact.git`（branch `main`） |
+| `docs/` | 工作区级技术文档（后端接口目录、上下文管理/会话结构分析、llama.cpp 适配方案等） | — |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
 | `.idea/`、`*.log` | 已忽略（IDE 配置；`harness-server.sh` 运行日志） | — |
 
@@ -180,12 +181,12 @@ llm/adapters-updated    settings/document-updated
 - 个别文件名带历史后缀（如 `fcwalk.dry.cjs` / `fcwalk.mjs` / `fcwalk2.mjs`、
   `fcbracecheck.cjs` / `fcbracecheck2.mjs`），保留原名以便对照既有笔记，勿据此推断功能。
 
-## 会话级授权：全程放权 + 默认推荐 + 3180 随手重启（本工作区既定约定）
+## 会话级授权：全程放权 + 默认推荐 + 3180 随手重启（本工作区约定，长期生效）
 
 - 用户在**本工作区**授予：开发过程中**无需逐步请示**，直接推进；遇到多选一
   **默认采用推荐方案**并在结果中标注所选为何；仅在不可逆 / 破坏性动作
   （如推送、删除、改用户主目录数据）前才简短说明。
-- **3180 为开发专用端口**：可随时 `bash harness-server-dev.sh` 重启或停掉，
+- **3180 为开发专用端口**：可随时 `bash harness-server-dev.sh` 重启或停掉（脚本 `DEV_PORT` 可覆盖默认 3180），
   不必事先询问（见上节"授权"）。3080 为主 GUI 所在端口，不适用此随意重启。
 - 文件沙箱策略：本会话为 `danger-full-access`（不受限读写）；审批弹窗在本会话
   **已禁用**——需要审批的动作会被自动拒绝，因此**不要**发起 `sandbox_permissions`
@@ -205,15 +206,3 @@ llm/adapters-updated    settings/document-updated
   - **跨用户可移植的路径**：绝不在代码里硬编码绝对路径（如 `C:\Users\<x>\…`）。
     默认值用 `~/…` 模板，运行时经 `node:os.homedir()`（Windows 读 `USERPROFILE`）
     解析到每个用户各自的家目录，从而在不同机器 / 用户间自然迁移。
-
-## 测试对话要求：饱满上下文 / 高保真（在本工作区创建对话时生效）
-
-为确保测试对话的上下文**完整、高级、高保真**，凡在 `deepseek-harness-plugins` 目录
-工作区内**创建对话**时，都必须让所驱动的模型**主动学习当前项目**：
-
-- **反复、尽量完整地通读代码**（read / glob / grep 全量扫读源码、配置、文档），
-  而不是一次浅读——目的是把对话内容撑得**又多又实**，覆盖真实的项目结构与契约。
-- **每次都重申此要求**：无论是对话首轮还是后续延续，都再次要求"学习本项目 + 多读全代码"，
-  不让上下文随轮次衰减。
-- 由此产生的**大体积对话内容是预期效果**，不要为了省 token 而跳过读码环节。
-- 适用范围限定为**测试 / 探针对话**；日常普通任务仍按正常节奏，不强制刷量读码。
