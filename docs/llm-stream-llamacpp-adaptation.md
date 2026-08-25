@@ -1,4 +1,4 @@
-# `ctx.llm.stream` 参数与本地 llama.cpp（:8080）适配性分析
+﻿# `ctx.llm.stream` 参数与本地 llama.cpp（:8080）适配性分析
 
 > 本文基于三方交叉验证：① harness 侧 `GenerateOptions` / `GenerateOptions` 序列化源码
 > （`deepseek-harness/packages/llm/llm/src/types.ts`、`packages/llm/llm-deepseek/src/serialize.ts`）；
@@ -209,7 +209,7 @@ API 未提供入口**，属"wire 可达、API 不可达"的死区。
 curl.exe -s http://127.0.0.1:8080/v1/models
 
 # 2. 运行 harness 形状探针
-node D:\deepseek-harness-plugins\fcprobe8080.cjs
+node D:\deepseek-harness-plugins\exploration\fcprobe8080.cjs
 #    预期：status 200、SSE ≥ 30 帧、末帧含 usage/timings/draft_*
 
 # 3. 复现 400 雷区（可选）

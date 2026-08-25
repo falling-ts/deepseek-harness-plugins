@@ -103,6 +103,19 @@
   api-path.js}`；网关宿主侧契约 `handler('<ns>/<method>', { args }, signal)`
   （`packages/api/gateway/tests/gateway.host.spec.ts`）。
 
+## 探测 / 驱动脚本：集中在 `exploration/`
+
+本工作区早期的探测与 wire 驱动脚本现已**集中存放在 `D:\deepseek-harness-plugins\exploration\`**
+（不再散落在工作区根目录）。它们是独立、可重复运行的 `.cjs` / `.mjs` 探针，
+不属于任何插件源码，仅供复现实测结论与驱动线上会话。
+
+- 典型用法（示例）：
+  `node D:\deepseek-harness-plugins\exploration\fcprobe8080.cjs`
+  `node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 smoke anchor`
+- 引用这些脚本的文档一律指向 `exploration/` 下的新路径。
+- 个别文件名带历史后缀（如 `fcwalk.dry.cjs` / `fcwalk.mjs` / `fcwalk2.mjs`、
+  `fcbracecheck.cjs` / `fcbracecheck2.mjs`），保留原名以便对照既有笔记，勿据此推断功能。
+
 ## 会话级授权：全程放权 + 默认推荐 + 3180 随手重启（本工作区既定约定）
 
 - 用户在**本工作区**授予：开发过程中**无需逐步请示**，直接推进；遇到多选一

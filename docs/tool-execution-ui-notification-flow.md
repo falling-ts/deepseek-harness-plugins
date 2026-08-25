@@ -1,8 +1,8 @@
 # 工具执行状态与 UI 通知流向分析
 
-> 本文档梳理 `ctx` 体系中代码执行（工具调用 / 进程生命周期）状态如何被记录、如何
-> 流向用户界面，以及哪些通道是"模型可见"、哪些是"纯 UI 装饰"。
-> 结论先行：**`ctx` 里没有专门的"通知服务"**——UI 看到的永远是
+> 本文档梳理 `ctx` 体系中代码执行（工具调用 / 进程生命周期）状态如何被记录、
+> 如何流向用户界面，以及哪些通道是「模型可见」、哪些是「纯 UI 装饰」。
+> 结论先行：**`ctx` 里没有专门的「通知服务」**——UI 看到的永远是
 > ① 对会话事件日志（`ctx.sessions.append`）的订阅，或
 > ② 进程句柄（`ShellProcess` / `SubprocessHandle`）的直接轮询 / 监听。
 > 不存在 `ctx.notify` / `ctx.ui.push` 这类直推接口。
@@ -16,7 +16,7 @@
 
 ---
 
-## 二、通道 A：工具执行的"权威账本"
+## 二、通道 A：工具执行的「权威账本」
 
 ### 2.1 `ctx.tools`（`ToolRuntime`）——唯一工具派发中枢
 
@@ -79,14 +79,14 @@ function appendToolResult(session, turn, step, block, result, callSeq): void {
 ```
 
 关键设计决策：
-- `tool/call` **是 log-only**（不在三类 surface 白名单），只用于关联、回放与"取消补账"。
+- `tool/call` **是 log-only**（不在三类 surface 白名单），只用于关联、回放与「取消补账」。
 - `tool/result` **是 surface**，`sourceEventSeqs:[callSeq]` 把它钉回那次调用，形成不可断裂的因果对。
-- **结果里的 `meta` 字段是"UI-only"通道**：`tool-fs` 在这塞 `presentation:'diff-card'`，
+- **结果里的 `meta` 字段是「UI-only」通道**：`tool-fs` 在这塞 `presentation:'diff-card'`，
   `tool-shell` 在这塞 `presentation:'terminal-card'` 之类。`meta` **不进模型 tokens**
   （surface 投影时只取 `message` 字段），但随 `tool/result` 一同被客户端订阅，
   UI 卡片据此精准还原。
 
-### 2.3 超时 / 取消的"状态"如何落地
+### 2.3 超时 / 取消的「状态」如何落地
 
 `packages/guard/timeout-policy/src/index.ts`（`ToolTimeoutPolicy` 插件）：
 
@@ -110,7 +110,7 @@ if (timeoutOf(d.signal, TOOL_TIMEOUT) !== undefined) {
 
 - **取消**同理：`appendSkippedToolCall`（`tool-calls.ts:249-259`）会给未启动的调用
   补一条合成的 `tool/result`，内容固定为 `"Error: tool call aborted before dispatch"`，
-  保证日志永远满足"调用必有结果"，回放不裂。
+  保证日志永远满足「调用必有结果」，回放不裂。
 
 ### 2.4 `ctx.shell` / `ctx.subprocess` 的进程句柄——活状态的另一半
 
@@ -152,21 +152,21 @@ export interface SubprocessHandle {
 }
 ```
 
-**这两条通道是"活状态"**：
+**这两条通道是「活状态」**：
 - 进程还在跑时，UI 卡片周期性调 `readOutput()` 拿增量、拼接到本地 buffer 显示。
 - 结束后 `status` 变终态、`done` resolve、UI 切换最终视图。
 - **全程不落日志**——日志里只有最后那条 `tool/result`（含完整收集输出或溢出文件路径）。
 
 ---
 
-## 三、通道 B：客户端如何把状态"推到界面"
+## 三、通道 B：客户端如何把状态「推到界面」
 
 ### 3.1 宿主端：事件 → `HostObservable`
 
 `packages/client/runtime/src/client/sessions/service.ts`：
 客户端的 `Session` 对象**订阅宿主会话的事件窗口**。每条事件进来后，按 `type`
 路由到对应的 `HostObservable`（snapshot store 引擎，zustand/immer 背板，
-`markFrameDirty` 微任务批量化）。这是 UI 感知"日志变化"的唯一入口。
+`markFrameDirty` 微任务批量化）。这是 UI 感知「日志变化」的唯一入口。
 
 ### 3.2 UI 端的三种消费姿势
 
@@ -270,13 +270,13 @@ export interface HostObservable<T> {
 **一句话总结**：
 > **`ctx.tools` 管账本（dispatch + waterfall），`ctx.shell` / `ctx.subprocess` 管进程活状态，
 > `ctx.sessions` 管落盘，客户端的 `HostObservable` 管推送。
-> 没有单独的"通知服务"——UI 看到的永远是日志订阅或句柄轮询，不是 push notification。**
+> 没有单独的「通知服务」——UI 看到的永远是日志订阅或句柄轮询，不是 push notification。**
 
 ---
 
 ## 五、对插件作者的含义（以 `dsh-force-compact` 为例）
 
-若你要让 force-compact 也出一张"正在压缩…"进度卡片：
+若你要让 force-compact 也出一张「正在压缩…」进度卡片：
 
 1. **不要**造 `ctx.forceCompactNotify` 之类的东西——这条路径设计上不存在，
    组件层也不许直接摸 ctx。
@@ -290,10 +290,10 @@ export interface HostObservable<T> {
    就在现有工具卡槽里贡献你自己的视图。
 3. **正路 · 活流路线**：把进度做成 `HostObservable`——插件 `apply` 里维护
    `currentProgress: HostObservable<ForceCompactProgress>`，客户端组件通过
-   inject face 绑定的 `useForceCompactProgress()` 钩子订阅。适合"活流"，
-   不适合"落盘事实"。
+   inject face 绑定的 `useForceCompactProgress()` 钩子订阅。适合「活流」，
+   不适合「落盘事实」。
 4. **`meta` 是免费的**：`tool/result` 的 `meta` 字段专门留给
-   "core 不认识、UI 需要的展示载荷"。只要 JSON 可序列化，客户端想取就取，
+   「core 不认识、UI 需要的展示载荷」。只要 JSON 可序列化，客户端想取就取，
    完全不动 core 任何代码。
 
 ---
@@ -325,7 +325,7 @@ rg "session.append\('tool/(call|result)'" \
 rg "deriveEventMessage|isSurfaceEligible" \
   D:\deepseek-harness-plugins\deepseek-harness\packages\core\session\src\surface.ts
 
-# 3. 找到超时插桩位置
+# 3. 找出超时插桩位置
 rg "deadline\(exec\.signal|timeoutOf\(d\.signal" \
   D:\deepseek-harness-plugins\deepseek-harness\packages\guard\timeout-policy\src
 
@@ -334,5 +334,5 @@ rg "interface (ShellProcess|SubprocessHandle)" \
   D:\deepseek-harness-plugins\deepseek-harness\packages
 
 # 5. 观察真实会话中 tool/result 携带的 meta（用之前的 fcdumplogs 脚本）
-node D:\deepseek-harness-plugins\fcdumplogs.cjs --only tool/result --limit 3
+node D:\deepseek-harness-plugins\exploration\fcdumplogs.cjs --only tool/result --limit 3
 ```
