@@ -13,6 +13,7 @@ const files = [
   'src/hooks/guard.js',
   'src/hooks/command.js',
   'src/hooks/idle.js',
+  'src/hooks/wire-rewrite.js',
 ]
 for (const f of files) {
   const url = 'file:///' + (dir + '/' + f).split('/').map(s => s.replace(/\\/g, '/')).join('/')
