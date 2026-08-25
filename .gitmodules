@@ -6,3 +6,7 @@
 	path = dsh-force-compact
 	url = git@github.com:falling-ts/dsh-force-compact.git
 	branch = main
+[submodule "awesome-dsh-plugin"]
+	path = awesome-dsh-plugin
+	url = git@github.com:falling-ts/awesome-dsh-plugin.git
+	branch = main
