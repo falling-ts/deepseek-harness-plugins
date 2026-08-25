@@ -83,9 +83,10 @@
 - **URL 形态**：`POST http://127.0.0.1:<port>/api/<namespace>.<method>`
   —— namespace 与方法之间是**句点**（如 `/api/pluginInventory.list`、`/api/session.create`），
   并非斜杠。此前误用斜杠 / 裸 `/api` / 错误的信封字段均返回 404。
-- **请求体信封**：`{"type":"client-request","rpcId":"<uuid>","method":"<namespace>/<method>","payload":{...}}`，
-  `Content-Type: application/json`。注意 `method` 字段内部用**斜杠** `<ns>/<method>`，
-  与 URL 用**句点** `<ns>.<method>` 不同，二者并存。
+- **请求体信封**：`{"type":"client-request","rpcId":"<uuid>","method":"<namespace>.<method>","payload":{...}}`，
+  `Content-Type: application/json`。**实测（2026-08-25，fcdrivestatus.cjs 验证）**：
+  `method` 字段必须与 URL 路径段**逐字一致、同为句点形态**；写成斜杠 `<ns>/<method>`
+  会被桥接器以 `bad-request: method "session/list" does not match path "session.list"` 拒绝。
 - **响应**：`{"type":"server-response","rpcId":"...","result":{"ok":true,"value":{...}}}`。
 - **权威方法清单**：`deepseek-harness/packages/host/apiproxy/src/api/rpc-map.ts`
   （键即 wire 路径段，签名推导入参/出参类型）。常用：
