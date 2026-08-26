@@ -3,3 +3,6 @@
 
 # Runtime logs (harness-server.sh writes dsh-web-<port>.log to the current directory)
 *.log
+
+# Raw QQ chat captures — kept only in the plugin's assets/, not the workspace root
+QQ*.png
