@@ -10,3 +10,7 @@
 	path = awesome-dsh-plugin
 	url = git@github.com:falling-ts/awesome-dsh-plugin.git
 	branch = main
+[submodule "dsh-web-ding"]
+	path = dsh-web-ding
+	url = git@github.com:falling-ts/dsh-web-ding.git
+	branch = main
