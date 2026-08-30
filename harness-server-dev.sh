@@ -40,6 +40,16 @@ else
   export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 fi
 
+# pnpm 11 auto-installs before every script (`verify-deps-before-run` default
+# "install"); in this git-submodule checkout the lefthook postinstall always
+# fails, so the pre-run install aborts the server start. Disable it; node_modules
+# is already synced.
+export pnpm_config_verify_deps_before_run=false
+
+# Local convenience: disable the upstream browser-session token/cookie
+# authentication for loopback-only development (client-connection honors this).
+export DSH_WEB_NO_AUTH=1
+
 ROOT="$(cd "$(dirname "$0")/deepseek-harness" && pwd)"
 PLUGIN_DIR="$ROOT/.."            # workspace root containing dsh-force-compact/
 PLUGIN_SRC="$PLUGIN_DIR/dsh-force-compact"

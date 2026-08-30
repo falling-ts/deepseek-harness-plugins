@@ -43,6 +43,17 @@ else
   export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
 fi
 
+# pnpm 11 runs `pnpm install` before every script (`verify-deps-before-run`
+# defaults to "install") whenever its status check deems node_modules out of
+# sync. This repo is a git submodule, so the lefthook postinstall always fails
+# (core.worktree lives in the common config) and that auto-install kills the
+# server start. Disable the pre-run install; node_modules is already synced.
+export pnpm_config_verify_deps_before_run=false
+
+# Local convenience: disable the upstream browser-session token/cookie
+# authentication for loopback-only development (client-connection honors this).
+export DSH_WEB_NO_AUTH=1
+
 ROOT="$(cd "$(dirname "$0")/deepseek-harness" && pwd)"
 
 LOG="$(pwd)/dsh-web-${PORT}.log"   # log goes to the current directory (at invocation time); appended (>>) on each start
