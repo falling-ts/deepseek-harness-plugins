@@ -50,9 +50,11 @@ fi
 # server start. Disable the pre-run install; node_modules is already synced.
 export pnpm_config_verify_deps_before_run=false
 
-# Local convenience: disable the upstream browser-session token/cookie
-# authentication for loopback-only development (client-connection honors this).
-export DSH_WEB_NO_AUTH=1
+# (2026-09) The old DSH_WEB_NO_AUTH env-var patch lived inside upstream
+# client-connection sources and was removed: upstream stays untouched now.
+# Loopback no-auth comes from the @falling-ts/dsh-local-no-auth bundle in the
+# web profile (it replaces the connection instance's auth methods at runtime).
+# No environment variable to export here.
 
 ROOT="$(cd "$(dirname "$0")/deepseek-harness" && pwd)"
 

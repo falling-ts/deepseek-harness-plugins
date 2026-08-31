@@ -14,3 +14,6 @@
 	path = dsh-web-ding
 	url = git@github.com:falling-ts/dsh-web-ding.git
 	branch = main
+[submodule "dsh-local-no-auth"]
+	path = dsh-local-no-auth
+	url = git@github.com:falling-ts/dsh-local-no-auth.git
