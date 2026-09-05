@@ -82,6 +82,13 @@
 harness Web 后端的**客户端可达接口**分四个面 + 一个下载通道。权威来源与各方法详细签名字段
 见 [docs/backend-api-catalogue.zh.md](docs/backend-api-catalogue.zh.md)（跨源核对总表）；本节为浓缩。
 
+> **0.1.3 传输漂移（重要）**：本节 S1 的**句点**形态 `/api/<ns>.<method>` 与 `RpcMethodMap`
+> 路由表属于**旧 `packages/host/apiproxy`**（0.1.3 已删）。0.1.3 起一元 RPC 改走
+> `client/connection` + typert gateway，wire 路径为**斜杠** `/api/<ns>/<method>`、
+> 信封 `payload:{args:{...}}`，方法清单以各 `packages/api/*/src` 的 `@Remote('<name>')`
+> 为准（详见下节"通过 wire 协议驱动一次对话"，已按 0.1.3 实测改写）。下表 S1 的方法
+> **名字**仍可参考，但**句点形态与 `RpcMethodMap`** 不再成立。
+
 ### 四类物理通道
 
 | 面 | 通道 / 形式 | 规模 |
@@ -145,27 +152,32 @@ llm/adapters-updated    settings/document-updated
 
 已验证可用的通道（PowerShell / 任意 HTTP 客户端皆可复现）：
 
-- **URL 形态**：`POST http://127.0.0.1:<port>/api/<namespace>.<method>`
-  —— namespace 与方法之间是**句点**（如 `/api/pluginInventory.list`、`/api/session.create`），
-  并非斜杠。此前误用斜杠 / 裸 `/api` / 错误的信封字段均返回 404。
-- **请求体信封**：`{"type":"client-request","rpcId":"<uuid>","method":"<namespace>.<method>","payload":{...}}`，
-  `Content-Type: application/json`。**实测（2026-08-25，fcdrivestatus.cjs 验证）**：
-  `method` 字段必须与 URL 路径段**逐字一致、同为句点形态**；写成斜杠 `<ns>/<method>`
-  会被桥接器以 `bad-request: method "session/list" does not match path "session.list"` 拒绝。
+- **URL 形态**：`POST http://127.0.0.1:<port>/api/<namespace>/<method>`
+  —— namespace 与方法之间是**斜杠**（如 `/api/pluginInventory/list`、`/api/session/create`）。
+  **0.1.3 起为斜杠**：旧的 `packages/host/apiproxy`（句点形态 `/api/<ns>.<method>`）已被
+  `client/connection` + typert gateway 传输取代（`64a963da0b` 引入，0.1.3 里 `apiproxy` 已删）；
+  现在用句点 / 裸 `/api` 一律 **404**。
+- **请求体信封**：`{"type":"client-request","rpcId":"<uuid>","method":"<ns>/<method>","payload":{"args":{...}}}`，
+  `Content-Type: application/json`。**实测（2026-09-04，0.1.3 验证）**：`method` 与 URL 路径段
+  同为**斜杠**；`payload` 必须包一层 `{"args":{...}}`（gateway 要求 "exactly one plain-object
+  args field"）；`args` 内的**键名 = `@Remote` 方法的形参名**（见下）。
 - **响应**：`{"type":"server-response","rpcId":"...","result":{"ok":true,"value":{...}}}`。
-- **权威方法清单**：`deepseek-harness/packages/host/apiproxy/src/api/rpc-map.ts`
-  （键即 wire 路径段，签名推导入参/出参类型）。常用：
-  `session.create`、`session.prompt`、`session.list`、`session.history`、
-  `pluginInventory.list`、`settings.describe`、`settings.update`、`workspace.list`。
+- **权威方法清单**：不再是 `apiproxy/rpc-map.ts`（已删），改为各 `packages/api/*/src` 里的
+  `@Remote('<name>')` 装饰器——wire 路径 = `<ns>/<name>`（`<ns>` 为 camelCase 命名空间，
+  `<name>` 即装饰器参数）。常用：`session/create`、`session/prompt`、`session/list`、
+  `session/history`、`pluginInventory/list`、`settings/describe`、`settings/update`、`workspace/list`。
 - **创建会话并发一句话（最小可复现序列）**：
-  1. `POST /api/session.create`，`payload:{}` → 返回 `value.sessionId`。
-  2. `POST /api/session.prompt`，`payload:{"sessionId":"<上一步 id>",
-     "mode":"queue","content":[{"type":"text","text":"…"}]}`（缺 `mode`/`content[]`
-     会得到 HTTP 400）→ 返回 `value.accepted:true`，回合异步执行。
-- **排障要点**：方法存在但参数形状错 → 400（而非 404）；方法不存在 → 404。
-  用 `session.list` 冒烟验连通性（`payload:{}` 即可）。
-- 传输细节载体：`@deepseek-ai/dsh-client-connection/lib/{types/http-bridge.js,
-  api-path.js}`；网关宿主侧契约 `handler('<ns>/<method>', { args }, signal)`
+  1. `POST /api/session/create`，`payload:{"args":{"request":{}}}`（`request` 形参，字段全可省）
+     → 返回 `value.sessionId`。
+  2. `POST /api/session/prompt`，`payload:{"args":{"request":{"requestId":"<uuid>",
+     "sessionId":"<上一步 id>","mode":"queue","content":[{"type":"text","text":"…"}]}}}`
+     （`requestId` 为客户端铸的 uuid，必填）→ 返回 `value.accepted:true`，回合异步执行。
+  冒烟连通性用 `session/list`：`payload:{"args":{"_request":{}}}`（`list` 的形参名是 `_request`）。
+- **排障要点**：URL/`method` 用句点或裸 `/api` → **404**（未知路径）；`payload` 缺 `args`
+  包层 → `gateway/internal`（"…exactly one plain-object args field"）；`args` 字段不符
+  descriptor → `gateway/arguments-invalid`（typert 会点名缺哪个字段）。
+- 传输细节载体：`@deepseek-ai/dsh-client-connection/src/{client/rpc.ts, api-path.ts, rpc-schema.ts}`；
+  网关宿主侧契约 `handler('<ns>/<method>', { args }, signal)`
   （`packages/api/gateway/tests/gateway.host.spec.ts`）。
 
 ## 探测 / 驱动脚本：集中在 `exploration/`
