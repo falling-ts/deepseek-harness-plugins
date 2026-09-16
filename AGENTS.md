@@ -1,5 +1,27 @@
 # AGENTS.md — deepseek-harness-plugins（根工作区）
 
+## 工具使用注意（本会话 shell 实测为 Windows PowerShell 5.1）
+
+2026-09-17 实测：命令解释器是 **Windows PowerShell 5.1**（`NonInteractive` 报错暴露），
+这带来四条必须遵守的规矩：
+
+- **绝不用 shell 的字符串 cmdlet 往返改写源码文件。** `Get-Content -Raw` + `-replace`
+  + `Set-Content` 会以 ANSI 解码 UTF-8（无 BOM）文件，把多字节字符截断成非法 UTF-8。
+  实测代价：`dsh-web-ding/package.json` 描述里的 em dash（`E2 80 94`）被截成 `E2 80 3F`，
+  文件仍是"看起来正常"的 JSON，`ConvertFrom-Json` 也照样解析通过，但 Node 的
+  `JSON.parse` 直接拒绝 → 插件整包 `failed to import` → 宿主半部根本没加载
+  （症状是 `settings/describe` 里少一个命名空间，**而不是**启动报错）。
+  改文件一律用文件工具（`edit` / `write`）；改完用 `node -e "JSON.parse(fs.readFileSync(...))"`
+  **严格**校验，别信 `ConvertFrom-Json`。
+- **中文/日文/韩文输出到 stdout 会乱码**，判断内容要看文件本身（`read` / `grep` 工具），
+  不要靠 shell 回显。
+- **不支持 `??`** 空合并运算符；`$host` 是保留变量，勿占用。
+- **`Invoke-WebRequest` 在 `NonInteractive` 下需要 `-UseBasicParsing`**（本机实测，
+  否则报 "Read and Prompt functionality is not available"）；`Invoke-RestMethod` 取
+  HTML/JS 文本可用。取 3180 的 client bundle 做端到端核对：
+  `Invoke-RestMethod "http://127.0.0.1:3180/plugins/??<包名>/client.js&rev=<哈希>"`
+  —— URL 里的 `rev` 参数**不能省**，省了是 404；哈希从 `GET /` 返回的模块表里取。
+
 ## 仓库性质
 
 本仓库是**工作区容器**（workspace container）：不含业务源码，只跟踪
