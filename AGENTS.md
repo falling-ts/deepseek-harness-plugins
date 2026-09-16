@@ -22,6 +22,23 @@
   `Invoke-RestMethod "http://127.0.0.1:3180/plugins/??<包名>/client.js&rev=<哈希>"`
   —— URL 里的 `rev` 参数**不能省**，省了是 404；哈希从 `GET /` 返回的模块表里取。
 
+### npm 发布（2026-09-17 实测，两条都踩过）
+
+- **必须显式 `--registry=https://registry.npmjs.org/`**。本机 `~/.npmrc` 把默认 registry
+  指向了 `registry.npmmirror.com` 镜像，而 `_authToken` 只作用域在
+  `//registry.npmjs.org/` 上——不显式指定时 `npm whoami` 直接报 `ENEEDAUTH`，
+  看起来像"没登录"，其实凭据是好的。发布命令一律写：
+  `npm publish --registry=https://registry.npmjs.org/`（`publishConfig.access: public`
+  已在各插件 `package.json` 里，无需再加 `--access`）。
+- **`PUT` 返回 202 不等于"立刻可取"**。三个包同日发布时，两个回 200、一个回 **202
+  （已接受、异步提交）**：该版本的元数据先落地（版本级端点 200、packument 的
+  `dist-tags.latest` 随后更新），而 **tarball 的 CDN 对象还要再等一会儿才可下载**。
+  所以 `npm publish` 打完 `+ <pkg>@<ver>` 就收工是不安全的——必须复验，且要分清三层：
+  ① `https://registry.npmjs.org/<pkg>/<ver>`（版本级端点，**不受 packument 缓存影响**，
+  是最快的决定性判据）；② packument 的 `dist-tags.latest`；③ tarball URL 本身（可能最后才通）。
+  一次 `npm view <pkg> versions` 看不到新版本时，先怀疑传播/缓存，别急着重复发布
+  （重复发布同一版本会 `EPUBLISHCONFLICT`）；用 ① 判定真伪。
+
 ## 仓库性质
 
 本仓库是**工作区容器**（workspace container）：不含业务源码，只跟踪
@@ -77,6 +94,27 @@
 - 各插件 `AGENTS.md` 中的 `../AGENTS.md`（collection conventions）指向本文件。
 - 插件仓库内的 `CLAUDE.md` 固定只写一行 `@AGENTS.md`（引用本插件的 AGENTS.md），
   规则内容一律维护在 AGENTS.md，避免双写。
+
+### peer 依赖的下限写法与 harness 版本基线（2026-09-17 增补）
+
+三个插件对 `@deepseek-ai/dsh-*` 的 peer 一律写成**纯下界** `>=0.1.6-alpha.1`，即官方 tag
+`dsh-v0.1.6-alpha.1` 对应的版本列车。**tag 名是 `dsh-v<版本>`，peer 字段里写 `<版本>`**
+——peer 吃 semver 范围、不吃 git tag。语义：只支持该基线及其以后，**0.1.5 及以前不再支持**。
+
+为什么 0.1.5 必须排除（不是洁癖，是硬依赖）：
+
+- `dsh-force-compact` 的摘要回放在**强制投影缝**上（`surface.deriveEventMessage`）——0.1.6 把
+  图像卸载改成 log-only 的 `@messageProjection` 事件，并让适配器改抛
+  `IMAGE_OFFLOAD_REQUIRED`；同版起影子价索赔按 `heuristicTokens` 计价（折叠器结算 replace
+  用的就是该字段），0.1.5 上没有这两条语义。
+- `dsh-local-no-auth` 的 fail-loud 依赖 0.1.6 的启动语义：`assertEntriesActivated` 被换成
+  只对私有必需 entry 清单致命的 `auditStartupEntries`，本插件不在表内，因此必须自己
+  `ctx.appExit(1)`（0.1.5 上抛错本身就致命，机制不同）。
+
+验证：`node exploration/peer-range-probe.mjs` —— 用 **harness 自己 vendor 的 semver**
+解析各范围，对着 `deepseek-harness/` 里上游包**实际声明的版本**断言"放行"，并断言范围字面
+就是 `>=<基线>`、0.1.5 被排除、0.1.6-alpha.2 / 0.1.7 被放行；同时用 `JSON.parse`
+**严格**校验三个 `package.json`（该文件曾被 shell ANSI 往返写坏，见上文"工具使用注意"）。
 
 ### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
 
