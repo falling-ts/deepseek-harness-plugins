@@ -78,6 +78,26 @@
 - 插件仓库内的 `CLAUDE.md` 固定只写一行 `@AGENTS.md`（引用本插件的 AGENTS.md），
   规则内容一律维护在 AGENTS.md，避免双写。
 
+### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
+
+插件是 plain JS、组件用内联 style，**不能**像官方客户端包那样写 CSS Module；但**内联 style 里的
+`var(--fcts-*)` 照样沿 DOM 继承解析**。集合约定：
+
+- 带设置分区的插件在 `apply` 时注入一张**只定义变量**的样式表（`<style id="falling-ts-theme-tokens">`，
+  按 id 幂等；两个插件注入的规则**逐字相同**，谁先注入都一样），组件里只引用 `var(--fcts-*)`，
+  **不写字面色**。
+- 两个分支：`body{…}` 放**改动前的浅色字面值**（保证浅色外观逐字节不变）；
+  `body[data-ds-dark-theme]{…}` 放**上游语义别名**（`--dsw-alias-label-primary`、
+  `--dsw-alias-label-secondary`、`--dsw-alias-border-l*`、`--dsw-alias-interactive-bg-*`）。
+  这些别名由官方主题包按肤定义（`deepseek-harness/packages/client/ui-theme/src/styles/
+  design-platform.css` 的 `body` 与 `body[data-ds-dark-theme]` 两块，后者是官方切换暗色的属性），
+  随主题自动翻转，插件**不需要自己判肤**。**暗色下说明/详细文字取 `--dsw-alias-label-primary`**
+  ——它在该表里解析为 `--dsw-static-neutral-bluish-50 = rgb(249,250,251)`，即纯白。
+- 允许保留字面量的只有：品牌色（蓝渐变及其辉光）、控件高光与投影阴影。其余一律走 token。
+- 验证：`node exploration/theme-token-probe.mjs` —— 它**解析官方主题表**、把每个 `--fcts-*`
+  的暗色取值沿 `var()` 链解析到真实 sRGB、按 WCAG 算对比度（当前：暗色说明文字 **17.45:1**），
+  拒绝任何指向不存在上游 token 的取值，并守住"浅色取值未漂移"与"设置区无残留字面色"。
+
 ## harness-server.sh
 
 - 用法：`bash harness-server.sh`（Linux 或 Windows Git Bash 均可）；
