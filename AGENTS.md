@@ -95,14 +95,41 @@
 - 插件仓库内的 `CLAUDE.md` 固定只写一行 `@AGENTS.md`（引用本插件的 AGENTS.md），
   规则内容一律维护在 AGENTS.md，避免双写。
 
-### peer 依赖的下限写法与 harness 版本基线（2026-09-17 增补）
+### peer 依赖的下限写法与 harness 版本基线（2026-09-23，基线 `>=0.1.7-alpha.1`）
 
-三个插件对 `@deepseek-ai/dsh-*` 的 peer 一律写成**纯下界** `>=0.1.6-alpha.1`，即官方 tag
-`dsh-v0.1.6-alpha.1` 对应的版本列车。**tag 名是 `dsh-v<版本>`，peer 字段里写 `<版本>`**
-——peer 吃 semver 范围、不吃 git tag。语义：只支持该基线及其以后，**0.1.5 及以前不再支持**。
+三个插件对 `@deepseek-ai/dsh-*` 与 `@deepseek-ai/cordis` 的 peer 一律写成**纯下界**，即官方
+tag `dsh-v0.1.7-alpha.1` 对应的版本列车：`@deepseek-ai/cordis: ">=4.0.4"`、
+`@deepseek-ai/schemastery: ">=3.18.4"`、`@deepseek-ai/dsh-*: ">=0.1.7-alpha.1"`。
+**tag 名是 `dsh-v<版本>`，peer 字段里写 `<版本>`**——peer 吃 semver 范围、不吃 git tag。
+语义：只支持该基线及其以后。（已核对 alpha.1 就含全部所需 API——`SettingsForms`、
+`compact-checkpoint`、`ToolResultMessage{role:'tool'}`——故无需抬到 alpha.2。）
 
-为什么 0.1.5 必须排除（不是洁癖，是硬依赖）：
+**清单规则：用哪些包就写哪些包**，且除 `@deepseek-ai/cordis` 外一律
+`peerDependenciesMeta.optional: true`——这些包在 profile 里由 dsh 安装提供、不在 profile 的
+`node_modules` 中，标 required 只会产生无意义告警（`pnpm peers check` 应报
+"No peer dependency issues found"）。当前清单：
+- `dsh-local-no-auth`：`dsh-client-connection`（`ctx.connection` 三方法）、
+  `dsh-host-webserver`（`ctx.webServer.host`）、`dsh-cmdline`（`ctx.appExit` fail-loud 缝）、
+  `dsh-app-boot`（`ctx.pluginPackages.metaOf`，元信息 shim 的包裹目标）
+- `dsh-web-ding`：`dsh-settings`（Config 表单 + `settings.update`）、`dsh-agent`
+  （`agent/status` 事件契约）、`schemastery`（Config schema）+ 客户端
+  `dsh-client-ui-settings` / `dsh-client-locale` / `dsh-client-store`
+- `dsh-force-compact`：`dsh-settings`、`dsh-compaction`、`dsh-llm`、`dsh-token-meter`、
+  `dsh-agent`、`dsh-session`、`dsh-session-projection`、`dsh-commands`、`schemastery`
+  + 客户端三个同上
 
+为什么 0.1.6 及以前必须排除（不是洁癖，是硬依赖）：
+
+- **客户端 settings 服务改名（0.1.7）**：`ctx.settingsScope.bind({ namespace })` 被
+  `ctx.configForms.get(namespace)` 取代——服务名 `settingsScope` 在 0.1.7 已从
+  `packages/client` 全量消失，`packages/client/ui-settings/src/client/` 现在提供
+  `configForms`（`settings-mirror.ts` 的 describe 镜像 + `config-form.ts` 的
+  `ConfigFormController`；`ui-settings` 同时拆成十个 `ui-settings-*` 子包）。
+  `ConfigForm` 与旧 `SettingsScope` 同形（`getSnapshot` / `subscribe` / `set` / `unset` /
+  `mutate`），差异是快照 `status` 枚举多了 `'loading'`，且三个写方法现在回答
+  `Promise<boolean>` 而非 `Promise<void>`。`dsh-web-ding` 与 `dsh-force-compact` 的客户端
+  半部都经这条缝读写各自命名空间，在 0.1.6 上 `ctx.settingsScope` 缺失会让分区直接不渲染。
+- **cordis 4.0.2 → 4.0.4（0.1.7）**：vendor 升级，peer 必须跟上。
 - `dsh-force-compact` 的摘要回放在**强制投影缝**上（`surface.deriveEventMessage`）——0.1.6 把
   图像卸载改成 log-only 的 `@messageProjection` 事件，并让适配器改抛
   `IMAGE_OFFLOAD_REQUIRED`；同版起影子价索赔按 `heuristicTokens` 计价（折叠器结算 replace
@@ -111,10 +138,10 @@
   只对私有必需 entry 清单致命的 `auditStartupEntries`，本插件不在表内，因此必须自己
   `ctx.appExit(1)`（0.1.5 上抛错本身就致命，机制不同）。
 
-验证：`node exploration/peer-range-probe.mjs` —— 用 **harness 自己 vendor 的 semver**
-解析各范围，对着 `deepseek-harness/` 里上游包**实际声明的版本**断言"放行"，并断言范围字面
-就是 `>=<基线>`、0.1.5 被排除、0.1.6-alpha.2 / 0.1.7 被放行；同时用 `JSON.parse`
-**严格**校验三个 `package.json`（该文件曾被 shell ANSI 往返写坏，见上文"工具使用注意"）。
+验证：`node exploration/plugin-manifest-check.mjs` —— 用 **`JSON.parse` 严格**校验三个
+`package.json`（该文件曾被 shell ANSI 往返写坏，见上文"工具使用注意"）并断言 peer 字面量
+等于上面的基线。`exploration/peer-range-probe.mjs` 是 0.1.6 时代的 semver 范围探针，其断言
+字符串需按新基线更新后再用。
 
 ### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
 
