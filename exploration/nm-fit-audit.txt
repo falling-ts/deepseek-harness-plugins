@@ -1,0 +1,9 @@
+﻿harness root      : D:\deepseek-harness-plugins\deepseek-harness
+workspace packages: 330
+dependency edges  : 5534
+semver engine     : yes (D:\deepseek-harness-plugins\deepseek-harness\node_modules\.pnpm\semver@7.8.5\node_modules\semver)
+
+INFO  lockfile-identity: node_modules/.pnpm/lock.yaml ===  pnpm-lock.yaml (996882 bytes)
+INFO grouped      : 
+
+OK: every declared dependency/peer resolves from its own package and satisfies its range.

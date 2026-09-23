@@ -7,6 +7,12 @@
 // harness vendors (pnpm store), against the versions declared by the upstream
 // packages in deepseek-harness/, and reports both directions.
 //
+// Baseline (2026-09-23): the plugins target the dsh-v0.1.7-alpha.2 train, whose
+// client settings service is `configForms` (the old `settingsScope` is gone) and
+// whose vendored cordis is 4.0.4. Every peer floor is therefore asserted to be
+// exactly `>=<the version this checkout declares>` -- for cordis that is the
+// vendor copy, not the dsh release train.
+//
 // It also parses every package.json with Node's JSON.parse rather than a lenient
 // reader: this workspace was once bitten by a shell round-trip that replaced an
 // em dash with a bare 0x3F byte, which ConvertFrom-Json happily accepted while
@@ -42,11 +48,12 @@ console.log(`semver ${require_(path.join(store, semverDir, 'node_modules/semver/
   `  (vendored by the harness at ${semverDir})`)
 
 // ── what the harness actually declares ───────────────────────────────────────
+// cordis is read from vendor/ (its own pin), everything else from the workspace.
 const UPSTREAM = {
   '@deepseek-ai/dsh-settings': 'deepseek-harness/packages/settings/settings/package.json',
   '@deepseek-ai/dsh-client-connection': 'deepseek-harness/packages/client/connection/package.json',
   '@deepseek-ai/dsh-host-webserver': 'deepseek-harness/packages/host/webserver/package.json',
-  '@deepseek-ai/cordis': 'deepseek-harness/node_modules/@deepseek-ai/cordis/package.json',
+  '@deepseek-ai/cordis': 'deepseek-harness/vendor/cordis/package.json',
 }
 const upstreamVersion = {}
 for (const [name, rel] of Object.entries(UPSTREAM)) {
@@ -74,7 +81,6 @@ for (const plugin of PLUGINS) {
     const actual = upstreamVersion[name]
     const optional = meta[name]?.optional === true
     if (actual === undefined) {
-      // cordis lives outside the @deepseek-ai/dsh-* release train; skip honestly.
       check(!name.startsWith('@deepseek-ai/dsh-'),
         `${name} ${range} [${optional ? 'optional' : 'required'}] -- no upstream copy to compare`)
       continue
@@ -82,13 +88,11 @@ for (const plugin of PLUGINS) {
     check(semver.satisfies(actual, range),
       `${name} ${range} [${optional ? 'optional' : 'required'}] admits the shipped ${actual}`)
 
-    // A harness-version peer must be a pure lower bound of the release train:
-    // >= <the version we are built and tested against>.
-    if (name.startsWith('@deepseek-ai/dsh-')) {
-      check(range.trim() === `>=${harnessVersion}`,
-        `${name} range is exactly >=${harnessVersion} (the dsh-v${harnessVersion} release train)`,
-        `got ${range}`)
-    }
+    // Every peer floor names the exact version this checkout ships: a pure lower
+    // bound of that package's own release train (cordis included, from vendor/).
+    check(range.trim() === `>=${actual}`,
+      `${name} range is exactly >=${actual}`,
+      `got ${range}`)
   }
 
   // npm refuses to publish a package whose own version is below a peer floor it names.
@@ -99,9 +103,11 @@ for (const plugin of PLUGINS) {
 console.log('\n=== range boundary semantics ===')
 const FLOOR = `>=${harnessVersion}`
 check(semver.satisfies(harnessVersion, FLOOR), `${harnessVersion} satisfies ${FLOOR} (we are installable here)`)
-check(!semver.satisfies('0.1.5-alpha.1', FLOOR), `0.1.5-alpha.1 is excluded by ${FLOOR}`)
-check(semver.satisfies('0.1.6-alpha.2', FLOOR), `a later prerelease of the same tuple (0.1.6-alpha.2) is admitted`)
-check(semver.satisfies('0.1.7', FLOOR), `0.1.7 is admitted (>= has no upper cap)`)
+check(!semver.satisfies('0.1.6-alpha.2', FLOOR), `0.1.6-alpha.2 is excluded by ${FLOOR} (no configForms there)`)
+check(!semver.satisfies('0.1.7-alpha.1', FLOOR), `0.1.7-alpha.1 (earlier prerelease of the tuple) is excluded by ${FLOOR}`)
+check(semver.satisfies('0.1.7-alpha.2', FLOOR), `the baseline itself (0.1.7-alpha.2) is admitted`)
+check(semver.satisfies('0.1.7', FLOOR), `0.1.7 (release) is admitted (>= has no upper cap)`)
+check(semver.satisfies('0.1.8', FLOOR), `0.1.8 is admitted (>= has no upper cap)`)
 check(!semver.satisfies('0.1.5', FLOOR), `0.1.5 (release) is excluded by ${FLOOR}`)
 
 console.log(`\n${failed === 0 ? 'ALL CHECKS PASSED' : 'FAILURES PRESENT'} -- ${passed} passed, ${failed} failed`)

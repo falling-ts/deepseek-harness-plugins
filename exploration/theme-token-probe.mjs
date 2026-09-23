@@ -206,8 +206,6 @@ for (const plugin of plugins) {
   check(marker > 0, `settings region marker found (${plugin.settingsMarker})`)
   const region = src.slice(marker)
     .replace(/const THEME_TOKENS_CSS = \[[\s\S]*?\]\.join\(""\);/, '')  // the token sheet itself
-    .replace(/const SWISH_HEXES = \[[\s\S]*?\];/, '')                  // the LiveUI phase palette
-    .replace(/const SWISH_CSS = "[\s\S]*?";/, '')                      // the swish animation sheet
     .replace(/\/\*[\s\S]*?\*\//g, '')                                  // comments
     .replace(/\/\/[^\n]*/g, '')
   const ALLOWED = [

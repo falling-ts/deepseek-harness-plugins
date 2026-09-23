@@ -1,0 +1,30 @@
+﻿root            : D:\deepseek-harness-plugins\deepseek-harness
+dirs visited    : 15972
+symlinks found  : 8604
+dangling links  : 26
+  DANGLING examples\node_modules\@deepseek-ai\dsh-acp-demo -> D:\deepseek-harness-plugins\deepseek-harness\packages\examples\acp-demo
+  DANGLING examples\node_modules\@deepseek-ai\dsh-agent-spine-demo -> D:\deepseek-harness-plugins\deepseek-harness\packages\examples\agent-spine-demo
+  DANGLING examples\node_modules\@deepseek-ai\dsh-code-runtime-worker-thread -> D:\deepseek-harness-plugins\deepseek-harness\packages\code-runtime\code-runtime-worker-thread
+  DANGLING examples\node_modules\@deepseek-ai\dsh-e2b -> D:\deepseek-harness-plugins\deepseek-harness\packages\e2b\e2b
+  DANGLING examples\node_modules\@deepseek-ai\dsh-fs-e2b -> D:\deepseek-harness-plugins\deepseek-harness\packages\e2b\fs-e2b
+  DANGLING examples\node_modules\@deepseek-ai\dsh-settings-file -> D:\deepseek-harness-plugins\deepseek-harness\packages\settings\settings-file
+  DANGLING examples\node_modules\@deepseek-ai\dsh-subprocess-e2b -> D:\deepseek-harness-plugins\deepseek-harness\packages\e2b\subprocess-e2b
+  DANGLING examples\node_modules\@deepseek-ai\dsh-tool-subagent-report -> D:\deepseek-harness-plugins\deepseek-harness\packages\subagent\tool-subagent-report
+  DANGLING examples\node_modules\@deepseek-ai\dsh-workflow-worker-thread -> D:\deepseek-harness-plugins\deepseek-harness\packages\workflow\workflow-worker-thread
+  DANGLING native\landlock-run\packages\entry\node_modules\@deepseek-ai\node-addon-landlock-run-linux-arm64 -> D:\deepseek-harness-plugins\deepseek-harness\native\landlock-run\packages\linux-arm64
+  DANGLING native\landlock-run\packages\entry\node_modules\@deepseek-ai\node-addon-landlock-run-linux-x64 -> D:\deepseek-harness-plugins\deepseek-harness\native\landlock-run\packages\linux-x64
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-agent-presets -> ..\..\..\..\packages\preset\agent-presets
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-client-ui-settings-unarchive-sessions -> ..\..\..\..\packages\client\ui-settings-unarchive-sessions
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-client-ui-sidebar-textpreview -> ..\..\..\..\packages\client\ui-sidebar-textpreview
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-code-runtime -> ..\..\..\..\packages\code-runtime\code-runtime
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-code-runtime-worker-thread -> ..\..\..\..\packages\code-runtime\code-runtime-worker-thread
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-e2b -> ..\..\..\..\packages\e2b\e2b
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-experimental-agent-team-web-profile -> ..\..\..\..\packages\experimental\agent-team-web-profile
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-experimental-code-runtime-python -> ..\..\..\..\packages\experimental\code-runtime-python
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-fs-e2b -> ..\..\..\..\packages\e2b\fs-e2b
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-settings-file -> ..\..\..\..\packages\settings\settings-file
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-subprocess-e2b -> ..\..\..\..\packages\e2b\subprocess-e2b
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-tool-present -> ..\..\..\..\packages\fs\tool-present
+  DANGLING node_modules\.pnpm\node_modules\@deepseek-ai\dsh-workflow-worker-thread -> ..\..\..\..\packages\workflow\workflow-worker-thread
+  DANGLING packages\session\session-persistence-jsonl\node_modules\@types\fs-ext -> ..\..\..\..\..\node_modules\.pnpm\@types+fs-ext@2.0.3\node_modules\@types\fs-ext
+  DANGLING packages\session\session-persistence-jsonl\node_modules\fs-ext -> ..\..\..\..\node_modules\.pnpm\fs-ext@2.1.1\node_modules\fs-ext

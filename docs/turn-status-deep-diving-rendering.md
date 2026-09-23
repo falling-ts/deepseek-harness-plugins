@@ -1,107 +1,116 @@
-# 「Deep diving...」TurnStatus 指示器的渲染与驱动
+# 运行中回合的「深度求索中，用时…」标签：渲染链路与贴皮机制
 
-> 本文档回答两个问题：① 界面上那句「Deep diving...」（含其计时钟）到底是
-> 如何渲染出来的？② 能否写一个「驱动方法」去修改 / 触发它的呈现？
-> 结论：**文案本身是 `ChatView.tsx` 里的 JSX 硬编码字面量**（未 i18n），
-> 只能通过改上游源码持久改变；wire 层面只能驱动它**出现 / 消失 / 计时起点**，
-> 以及做一次**临时的 DOM 文本替换**（下一帧 React 重渲染即还原）。
-> 配套的可运行驱动脚本见 `exploration/fcdrivestatus.cjs`。
+> 本文回答三个问题：① 界面上那句「深度求索中，用时1分14秒」到底如何渲染？
+> ② 想改它，有哪些缝、哪些是死的？③ force-compact 插件现在怎么改它？
+> 结论：**文案与计时全在客户端**，由 `ui-chat` 的 `turn-process` 会话节点渲染，
+> 锚点是落盘的 `turn/start` 时间戳 + 1 秒定时器；宿主 wire 层**只能驱动状态**，
+> 改不了文案。插件走的是**只替换可见标签前缀、保留 harness 计时**的 DOM 贴皮。
+>
+> **2026-09-24 重写**：原文描述的是 harness 0.1.7 之前的
+> `ui-conversation/ChatView.tsx` `TurnStatus` 组件（JSX 硬编码 `Deep diving...`、
+> 未 i18n、≥15s 才出时钟、`.turnStatus` shimmer）。那一整套在 0.1.7 已删除。
 
-## 一、渲染链路（四层，均已查实）
+## 一、渲染链路（0.1.7 实况）
 
 ```
-宿主会话 running:boolean
-        │  每帧 host frame
-        ▼
-manager.ts   →  mutation { kind:'status', sessionId, running }
-        │
-        ▼
-sessions/session.ts:handleRunning(525-534)
-        │  this.running = … ; publish()
-        ▼
-useSession(s => s.running)   // ChatView.tsx:168
-        │
-        ▼
-{ running && <TurnStatus startTime={runningTurnStart} t={t} /> }  // :453
-        │
-        ▼
-<div className={css.turnStatus} role="status" aria-live="polite">
-     Deep diving...          ← JSX 字面量（:144，未 i18n）
-     [<span>2分0X秒</span>]  ← elapsed ≥ 15s 才出现的时钟
+turn/start（持久事件，带时间戳）
+  │  conversation-nodes/turn-process.ts:213   match → 建节点（锚 controlAnchorSeq）
+  ▼
+TurnProcessNodeView（chat/TurnProcessNodeView.tsx:10-68）
+  ├─ 计时：useState(now) + setInterval(LIVE_RUN_CLOCK_INTERVAL_MS=1000)   [:18-25]
+  ├─ 时长：elapsedMs = max(1000, (turn.end?.time ?? now) − turn.start.time) [:30-31]
+  ├─ 文案：running ? t('message.turnProcess.deepDivingFor',{duration})
+  │                 : t('message.turnProcess.took',{duration}) / worked / failed / stopped [:35-40]
+  └─ 结构：
+       <span role="status" aria-live="polite" class="…visuallyHidden">深度求索中</span>   ← a11y 播报
+       <button data-turn-process="N"><span class="…label">深度求索中，用时1分14秒</span></button>  ← 唯一可见文案
+```
+
+| 环节 | 位置 |
+|---|---|
+| 组件本体 | `packages/client/ui-chat/src/client/chat/TurnProcessNodeView.tsx` |
+| 计时与格式化 | `…/chat/message-chrome.ts:13`（`LIVE_RUN_CLOCK_INTERVAL_MS`）、`:49-78`（`formatRunDuration` 结束态补零 / `formatLiveRunDuration` 运行态秒不补零） |
+| 词典 | `…/client/locale.ts:48` `'深度求索中，用时{duration}'`、`:68` `'深度求索中'`、`:147-149` 时长模板 |
+| 节点定义 / 事件匹配 | `…/conversation-nodes/turn-process.ts:212-239`（`turn/start` → start，`step/*`、`turn/end` → update） |
+| 渲染器注册 | `…/chat/register-node-renderers.ts:63`（`conversation.chat.node` key `turn-process`） |
+| 样式 | `…/chat/TurnProcessNodeView.module.css`（`.root` / `.label`：`color: var(--dsw-alias-label-tertiary)`） |
+| a11y 隐藏 | `…/chat/accessibility.module.css` `.visuallyHidden`（1px 裁剪） |
+
+**语义要点**
+
+- **可见文案 = 一个插值字符串**（`PREFIX + 时长`），**运行期间每秒重渲染一次**。
+- `role="status"` 节点只放 `chat.deepDiving`（**不含时长**），且是 1px 裁剪的读屏专用节点。
+- **0.1.7 取消了旧版「15 秒后才显示时钟」的门槛**——running 期间恒显时长。
+- 计时锚点是**落盘**的 `turn/start` 时间戳，刷新页面能续上真实耗时。
+- `.turnStatus` / `.turnStatusClock` 两个类与整套 shimmer 已删除（全仓只剩一个无关的
+  `locationTurnStatus` 工具函数）；旧文档描述的 shimmer 贴皮路径已不存在。
+
+### 实例 DOM（live 3080 抓取）
+
+```html
+<div data-chat-flow-kind="turn-process" data-chat-turn="6">
+  <div data-slot="conversation.chat.node" style="display:contents">
+    <span class="QgQmwW_visuallyHidden" role="status" aria-live="polite" aria-atomic="true">深度求索中</span>
+    <button class="thT5eq_root" data-turn-process="6" disabled="" aria-expanded="true">
+      <span class="thT5eq_label">深度求索中，用时1分14秒</span>
+    </button>
+  </div>
 </div>
 ```
 
-### 组件本体
+稳定锚点（非哈希）：`button[data-turn-process]`、`data-chat-flow-kind="turn-process"`、
+`data-chat-turn`。哈希类名（`thT5eq_*`、`QgQmwW_*`）不可依赖。
 
-`deepseek-harness/packages/client/ui-conversation/src/client/chat/ChatView.tsx:119-152`
-的 `TurnStatus` 组件渲染一个 `role="status" aria-live="polite"` 的 div，内含：
+## 二、DOM 契约（贴皮方必须遵守）
 
-- **固定的文字标记** `Deep diving...`（`:144` 处 JSX 字面量）；
-- **可选的时钟 span**，格式化为 `2分0X秒`（中文 locale）。
-
-### 渲染门控
-
-`:453`：`{running && <TurnStatus …/>}`，其中 `running = useSession(s => s.running)`（`:168`）。
-**只要该 session 处于 running 状态就显示**，贯穿整个 running 区间
-（等首 token + 工具执行 + 流式生成），并不随单个 step 闪烁；
-`running` 翻转为 `false` 时整体卸载。
-
-### 时钟锚点语义
-
-`runningTurnStartTime(timeline)`（`:110-116`）：遍历 `timeline.turns`，
-找**最新的 `status==='open' && start!==undefined` 回合**，取其
-`start.time`（即持久化的 `turn/start` 事件时间戳）作为计时原点；
-找不到则退化为组件挂载时的 `Date.now()`。
-组件内置 1s 的 `setInterval` 重算 `elapsedMs`；
-`showClock` 仅在 `elapsedMs >= 15_000` 时为真，再由
-`formatRunDuration(elapsedMs, t)` 格式化（中文 locale 输出 `2分0X秒`）。
-**中途刷新页面也能续上真实耗时**，因为锚点是落盘的时间戳而非内存值。
-
-## 二、CSS / DOM 锚点
-
-| 项 | 位置 | 说明 |
-|---|---|---|
-| shimmer 扫光 | `ChatView.module.css:74-120` `.turnStatus` | 渐变蓝 `background-clip:text` 透明填充，`animation: dsh-turn-status-shimmer 1.8s linear infinite`；`height:26px`、`white-space:nowrap` |
-| 时钟样式 | `:99-106` `.turnStatusClock` | `margin-left:8px`、tabular-nums、caption 色 |
-| 减动效 | `:114-120` | `prefers-reduced-motion` 关闭动画 |
-| DOM 选择器 | `[role="status"][aria-live="polite"]` | e2e 定位入口 |
-| e2e 锚 | `apps/web/tests/live-interactions.e2e.ts:145`、`turn-tail-actions.e2e.ts:122` | `page.getByRole('status').filter({ hasText: 'Deep diving...' })` |
-| spec 断言 | `ui-conversation/tests/chat-view.client.spec.tsx:878,938,950` | `textContent === 'Deep diving...'` 或匹配 `/^Deep diving\.\.\.2分0\d秒$/` |
-
-## 三、事实速查表
-
-| 维度 | 结论 |
+| 事实 | 后果 |
 |---|---|
-| **文案来源** | `ChatView.tsx:144` JSX 字面量，**未走 i18n** |
-| **组件** | `TurnStatus`（`ui-conversation/src/client/chat/ChatView.tsx:119-152`） |
-| **渲染门控** | `{running && <TurnStatus …/>}`（`:453`） |
-| **数据源** | 宿主 `running` → `manager` `{kind:'status'}` → `session.handleRunning`(525-534) → `publish` → `useSession(s=>s.running)` |
-| **时钟锚点** | 最新 open 回合的 `turn/start` 落盘时间戳（`runningTurnStartTime`，:110-116） |
-| **时钟显隐** | 前 15s 纯文字，≥15s 追加 `2分0X秒`（每秒重算） |
-| **DOM** | `<div role="status" aria-live="polite">`，文本前缀 `Deep diving` |
-| **测试耦合** | 字符串被 e2e/snapshot 固定，改字面量需连带更新 fixtures |
+| 可见文案在 `button[data-turn-process] > span` 的**文本节点**里 | 必须改 `nodeValue`；写 `textContent` 会换掉 React 持有的那个文本节点，官方计时从此更新不上来 |
+| 该文本节点**每秒**被 React 重写（时长在跳） | 一次性覆盖 ≤1 秒即被抹掉；必须"React 一写就重贴" |
+| `role="status"` 是读屏播报节点，且是**判断运行态的唯一语言无关信号** | 可以读它当锚，但**不能改**（改了读屏器会播报贴皮文案，且丢掉官方播报） |
+| 运行态标签 = 播报文本 + 计时（`深度求索中` + `，用时1分14秒`；`Deep diving` + ` for 1m 14s`） | 用**公共前缀**切分即可拿到"属于 harness 的计时"，中英通用、无需硬编码任何文案 |
+| 回合结束后标签变成「用时 2分5秒」/「Took 2m 5s」/「已完成工作」 | 这些与播报文本**没有**公共前缀 ⇒ 判据天然排除，官方原文不动 |
 
-## 四、驱动方法：能改什么、不能改什么
+## 三、驱动方法：能改什么、不能改什么
 
 | 目标 | 可行性 | 途径 |
 |---|---|---|
-| **让它出现** | ✅ | wire `session.prompt`（queue 模式）注入任务使 `running=true` |
-| **让它消失** | ✅ | 轮询 `session.list` 直到 `running=false`，或直接 `session.cancel` |
-| **读计时锚点** | ✅ | `session.history` 提取最新 `turn/start` 时间戳（指示器计时的确切起点） |
-| **临时改文案** | ⚠️ 临时 | DevTools 控制台替换该 div 的文本节点（React 重渲染即还原） |
-| **持久改文案** | ⚠️ 需改源码 | 编辑 `ChatView.tsx:144` 字面量并重编 web 工件（属 `deepseek-harness` 子模块） |
+| **让它出现** | ✅ | wire `session/prompt`（queue 模式）注入任务使该回合 running |
+| **让它消失** | ✅ | 轮询 `session/list` 直到 `running=false`，或 `session/cancel` |
+| **读计时锚点** | ✅ | `session/history` 提取最新 `turn/start` 时间戳 |
+| **改可见文案（持久、抗每秒重渲染）** | ✅ | **只在客户端**：替换可见标签前缀 + 观察 React 重写（见 §四） |
+| **改 `role="status"` 播报** | ❌ 不该做 | 那是无障碍通道；改它 = 抢播报，且不改变可见文案 |
+| **改 locale 词典持久改词** | ❌ | `locale.register` 对**同一 ns+locale** 的第二人抛 `already has locale`（见 `ui-directory-picker-browse/tests/client-flow.client.spec.tsx:141-161`），外部插件无法覆盖 `ui-chat` 的 `chat` 命名空间 |
+| **改上游源码字面量** | ⚠️ | 0.1.7 起文案已 i18n，改的是 `ui-chat` 词典，且属 `deepseek-harness` 上游流程 |
 
-**为什么 wire 层改不了文案**：`Deep diving...` 是前端 JSX 常量，wire 协议
-（`session.*` / `host.*` / …）没有任何「改 UI 文案」的方法；wire 只能影响
-**状态**（running），而文案由前端组件按状态渲染出来。所以持久改词只能改上游源码
-（那属于 `deepseek-harness` 子模块，动它要走上游流程）；不改源码就只能做临时 DOM
-替换。此外 e2e/snapshot 测试固定了 `'Deep diving...'` 这个串，改字面量还会牵连
-`chat-view.client.spec.tsx:878,938,950` 与若干 fixture，这也是驱动脚本刻意走
-「非侵入」路线的原因。
+**为什么 wire 层改不了文案**：wire（`session/*`、`host/*`…）没有任何「改 UI 文案」的方法，
+只能影响状态；文案由前端组件按状态渲染。所以持久改词只能落在客户端 DOM 或上游词典。
 
-## 五、驱动脚本 `exploration/fcdrivestatus.cjs`
+## 四、force-compact 插件现在的做法（前缀替换器）
 
-六个动词，覆盖上面表格里所有「✅」项：
+`dsh-force-compact/web/client.js` 的 `paintTurnStatus` + 一组 `*Label*` 助手：
+
+1. **定位**：`document.querySelectorAll('button[data-turn-process] > span')`（多会话/多标签页各命中）。
+2. **切分**：读同级 `[role="status"][aria-live="polite"]` 的文本当锚，取它与可见标签的
+   **公共前缀长度**；前缀之后即为 harness 计时（含 `，用时` / ` for ` 连接词），原样保留；
+   公共前缀为 0 ⇒ 不是运行态，跳过、官方原文留着。
+3. **写入**：`textNode.nodeValue = 相位文案 + 计时尾巴`。**不写颜色、不改字体**，
+   官方 tertiary 灰与字号逐字不变。
+4. **抗重渲染**：`MutationObserver`（`characterData` + `childList`）在 React 重写的同一微任务里
+   重贴；观察器**只在有活跃相位期间连接**，清空即断开（插件卸载再兜底断开）。
+   回调先用 `touchesTurnLabel(records)` 过滤，自己的写入由 `painted` 值比对短路，不会自激。
+5. **清空**（宿主推 `text: ""` / `textId: 'end'`）：把贴过的标签**还原成官方原文**并断开观察器
+   ——回合结束后 React 不再重渲染该标签，不还原就会永久残留贴皮文案。
+
+宿主侧 `src/core/ui-signal.js` 只发 `{ phase, text, textId }`（**不再有 `color`**）；
+相位 = `working`（每次 LLM 调用换一条随机俏皮话）/ `compressing` / `done` / `end`。
+
+**行为验证**：`node exploration/fc-livetext-prefix-probe.mjs` —— 从 `web/client.js`
+**提取真实实现**（不是副本）配最小 DOM 桩，12 项：中英前缀替换、计时保留、无时长形态、
+回合结束不贴、相位切换原地重绘、React 重写后重贴、自激短路、清空还原 + 断连、
+textId 未知回退、多会话并贴。
+
+## 五、驱动脚本
 
 ```
 node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs [PORT] [--sid=<id>] [verbs...]
@@ -109,62 +118,51 @@ node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs [PORT] [--sid=<id
 
 | 动词 | 作用 | wire 方法 |
 |---|---|---|
-| `smoke` | 拉会话表，打印各行 `id/running/cwd/updatedAt` | `session.list` |
-| `anchor` | 从 `session.history` 读出最新 `turn/start` 时间戳（=指示器计时的确切锚点） | `session.history` |
-| `appear` | queue 模式 `session.prompt` 注入多步任务，轮询直到该行 `running=true`（指示器出现，过 15s 出时钟） | `session.prompt` |
-| `disappear` | 轮询直到 `running=false`（指示器卸载） | `session.list` |
-| `cancel` | 立即停止当前回合（指示器即刻消失） | `session.cancel` |
-| `relabel` | 输出可直接粘贴到 GUI 页 DevTools 控制台的片段，把标签文本节点换成自定义文案（如「⚡ 深挖中…」） | —（纯前端） |
+| `smoke` | 拉会话表，打印各行 `id/running/cwd/updatedAt` | `session/list` |
+| `anchor` | 从 `session/history` 读出最新 `turn/start` 时间戳（=计时的确切锚点） | `session/history` |
+| `appear` | queue 模式 `session/prompt` 注入多步任务，轮询直到 `running=true` | `session/prompt` |
+| `disappear` | 轮询直到 `running=false` | `session/list` |
+| `cancel` | 立即停止当前回合 | `session/cancel` |
+| `relabel` | 输出可粘贴到 DevTools 的片段，把可见标签文本节点换成自定义文案 | —（纯前端） |
 
-### 已实测（2026-08-25，live 3080）
+### wire 协议要点（0.1.3 起为斜杠形态）
 
-- `smoke` ✓ — 列出 10 个会话，其中正在跑的 `session-5ec583f8-…`（本对话）报 `running:true`。
-- `anchor` ✓ — 读到 `turn/start` 时间戳 `1787626119322` ≈ `2026-08-25T02:48:39Z`，
-  即此刻指示器正在为其计时的锚点。
-
-### wire 协议要点（本次实测纠正）
-
-- **URL 形态**：`POST /api/<namespace>.<method>`（句点连接，如 `/api/session.list`）。
-- **信封**：`{"type":"client-request","rpcId":"…","method":"<namespace>.<method>","payload":{...}}`。
-- **重要纠正**：`method` 字段必须与 URL 路径段**逐字相同、同为句点形**。
-  写成斜杠 `session/list` 会被桥接器以
-  `bad-request: method "session/list" does not match path "session.list"` 拒绝。
-  （早期笔记误记为「字段斜杠 / URL 句点并存」，已由 `fcdrivestatus.cjs` 实测推翻。）
-- **响应**：`{"type":"server-response","rpcId":"…","result":{"ok":true,"value":{...}}}`。
-- **权威方法清单**：`deepseek-harness/packages/host/apiproxy/src/api/rpc-map.ts`。
+- **URL**：`POST /api/<namespace>/<method>`（如 `/api/session/list`）。
+- **信封**：`{"type":"client-request","rpcId":"<uuid>","method":"<ns>/<method>","payload":{"args":{…}}}`。
+- **`method` 与 URL 末段必须逐字一致**；`args` 内键名 = `@Remote` 方法形参名。
+- **响应**：`{"type":"server-response","rpcId":"…","result":{"ok":true,"value":{…}}}`。
+- **权威方法清单**：各 `packages/api/*/src` 里的 `@Remote('<name>')`（旧的
+  `packages/host/apiproxy/src/api/rpc-map.ts` 已在 0.1.3 随 `apiproxy` 一起删除）。
 
 ## 六、引文表
 
 | 位置 | 含义 |
 |---|---|
-| `packages/client/ui-conversation/src/client/chat/ChatView.tsx:119-152` | `TurnStatus` 组件（含 `:144` 字面量） |
-| `packages/client/ui-conversation/src/client/chat/ChatView.tsx:110-116` | `runningTurnStartTime` 时钟锚点算法 |
-| `packages/client/ui-conversation/src/client/chat/ChatView.tsx:168,453` | `useSession(s=>s.running)` 与渲染门控 |
-| `packages/client/ui-conversation/src/client/chat/ChatView.module.css:74-120` | shimmer 扫光 / 时钟 / 减动效 |
-| `packages/client/runtime/src/client/sessions/session.ts:525-534` | `handleRunning` 置 `running` 并发布 |
-| `packages/client/runtime/src/client/sessions/manager.ts` | `{kind:'status'}` 变更来源 |
-| `packages/host/apiproxy/src/api/rpc-map.ts` | 41 个 wire 方法权威清单 |
-| `apps/web/tests/{live-interactions,turn-tail-actions}.e2e.ts` | `getByRole('status')` 定位 |
-| `ui-conversation/tests/chat-view.client.spec.tsx:878,938,950` | 固定 `'Deep diving...'` 串的断言 |
-| `exploration/fcdrivestatus.cjs` | 配套驱动脚本 |
+| `packages/client/ui-chat/src/client/chat/TurnProcessNodeView.tsx:10-68` | 组件（计时 `:18-25`、时长 `:30-33`、文案 `:35-44`、DOM `:45-66`） |
+| `…/chat/message-chrome.ts:13,49-78` | 1 秒刷新常量与两个时长格式化器 |
+| `…/client/locale.ts:48,68,147-149` | `deepDivingFor` / `deepDiving` / 时长模板 |
+| `…/chat/TurnProcessNodeView.module.css` | `.root` / `.label`（官方 tertiary 灰） |
+| `…/chat/accessibility.module.css` | `.visuallyHidden`（播报节点 1px 裁剪） |
+| `…/conversation-nodes/turn-process.ts:212-239` | 事件匹配与节点状态折叠 |
+| `…/chat/register-node-renderers.ts:63` | `turn-process` 渲染器注册 |
+| `packages/client/locale/src/client/index.ts` | `register` / `addLanguage`（同 ns+locale 独占） |
+| `dsh-force-compact/web/client.js` | 前缀替换器（`paintTurnStatus` 与 `*Label*` 助手） |
+| `dsh-force-compact/src/core/ui-signal.js` | 宿主相位信令（`liveUi`，无颜色字段） |
+| `exploration/fc-livetext-prefix-probe.mjs` | 贴皮行为探针（12 项） |
+| `exploration/fcdrivestatus.cjs` | 会话/计时 wire 驱动脚本 |
 
 ## 七、复现命令
 
 ```bash
-# 1. 冒烟：拉会话表（当前 running 的行就是正在跑的那个）
+# 1. 冒烟：拉会话表（running 的行就是正在跑的那个）
 node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 smoke
 
 # 2. 读计时锚点：最新 turn/start 时间戳
 node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 anchor
 
-# 3. 指定会话出现 / 消失 / 取消
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 --sid=<id> appear
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 --sid=<id> disappear
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 --sid=<id> cancel
+# 3. 贴皮行为（真实实现 + DOM 桩，12 项）
+node D:\deepseek-harness-plugins\exploration\fc-livetext-prefix-probe.mjs
 
-# 4. 输出临时改文案用的 DevTools 片段
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 relabel
-
-# 5. 核对源码字面量位置（持久改词需从这里下手）
-rg "Deep diving" D:\deepseek-harness-plugins\deepseek-harness\packages\client\ui-conversation\src
+# 4. 核对官方文案与结构
+rg "deepDiving" D:\deepseek-harness-plugins\deepseek-harness\packages\client\ui-chat\src
 ```
