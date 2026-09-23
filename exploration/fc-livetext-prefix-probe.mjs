@@ -89,7 +89,7 @@ function check(name, actual, expected) {
 }
 const zhT = (key) => ({
   badgeCompressing: '[压缩中]', badgeDone: '[完成]', badgeEnd: '',
-  badgeWorking13: '正在翻阅《天机》...', badgeWorking7: '假装很忙...',
+  badgeWorking13: '正在翻阅《天机》', badgeWorking7: '假装很忙',
 }[key] ?? key)
 const enT = (key) => ({
   badgeCompressing: '[compressing]', badgeDone: '[done]', badgeEnd: '',
@@ -98,8 +98,8 @@ const enT = (key) => ({
 
 // 1 · zh running label: replace the leading phrase, keep "，用时…" verbatim.
 const zh = mount('深度求索中', '深度求索中，用时1分14秒')
-api.paintTurnStatus({ phase: 'working', text: '正在翻阅《天机》...', textId: 'working.13' }, zhT)
-check('zh: prefix replaced, harness clock preserved', zh.textNode.nodeValue, '正在翻阅《天机》...，用时1分14秒')
+api.paintTurnStatus({ phase: 'working', text: '正在翻阅《天机》', textId: 'working.13' }, zhT)
+check('zh: prefix replaced, harness clock preserved', zh.textNode.nodeValue, '正在翻阅《天机》，用时1分14秒')
 
 // 2 · en running label keeps its own connector (" for ").
 const en = mount('Deep diving...', 'Deep diving for 1m 14s')
@@ -111,12 +111,12 @@ check('a11y announcement untouched', zh.scope.children[0].textContent, '深度�
 
 // 4 · no-duration form (turn.start absent) → prefix only.
 const bare = mount('深度求索中', '深度求索中')
-api.paintTurnStatus({ phase: 'working', text: '假装很忙...', textId: 'working.7' }, zhT)
-check('no-duration form → prefix only', bare.textNode.nodeValue, '假装很忙...')
+api.paintTurnStatus({ phase: 'working', text: '假装很忙', textId: 'working.7' }, zhT)
+check('no-duration form → prefix only', bare.textNode.nodeValue, '假装很忙')
 
 // 5 · ended turn ("用时 2分5秒" vs announcement "已完成工作") → untouched.
 const ended = mount('已完成工作', '用时 2分5秒')
-api.paintTurnStatus({ phase: 'working', text: '假装很忙...', textId: 'working.7' }, zhT)
+api.paintTurnStatus({ phase: 'working', text: '假装很忙', textId: 'working.7' }, zhT)
 check('ended label left official', ended.textNode.nodeValue, '用时 2分5秒')
 
 // 6 · phase change while our text is still in place (React has not rewritten yet).
@@ -141,14 +141,14 @@ check('clear disconnects the observer', observer.connected, false)
 
 // 10 · fallback: no dictionary entry / no t → the host's canonical text.
 const noT = mount('深度求索中', '深度求索中，用时3秒')
-api.paintTurnStatus({ phase: 'working', text: '正在酝酿骚操作...', textId: 'working.99' }, undefined)
-check('unknown textId falls back to the canonical text', noT.textNode.nodeValue, '正在酝酿骚操作...，用时3秒')
+api.paintTurnStatus({ phase: 'working', text: '正在酝酿骚操作', textId: 'working.99' }, undefined)
+check('unknown textId falls back to the canonical text', noT.textNode.nodeValue, '正在酝酿骚操作，用时3秒')
 
 // 11 · two open sessions are painted independently.
 const second = mount('深度求索中', '深度求索中，用时5秒')
-api.paintTurnStatus({ phase: 'working', text: '正在驯服混沌...', textId: 'working.11' }, zhT)
+api.paintTurnStatus({ phase: 'working', text: '正在驯服混沌', textId: 'working.11' }, zhT)
 check('all open sessions painted', `${noT.textNode.nodeValue} | ${second.textNode.nodeValue}`,
-  '正在驯服混沌...，用时3秒 | 正在驯服混沌...，用时5秒')
+  '正在驯服混沌，用时3秒 | 正在驯服混沌，用时5秒')
 
 console.log(`\n${failures.length === 0 ? 'ALL CHECKS PASSED' : 'FAILURES PRESENT'} — ${passed} passed, ${failures.length} failed`)
 if (failures.length !== 0) { for (const f of failures) console.log(`  ${f}`); process.exit(1) }
