@@ -70,15 +70,25 @@ console.log('— dsh-local-no-auth —')
     webServer: { host: '127.0.0.1' },
     logger: { info: () => {}, warn: () => {}, error: () => {} },
     on: (name, fn) => { if (name === 'dispose') ctx._dispose = fn },
+    // `effect(execute)` runs `execute` IMMEDIATELY (cordis fiber.effect) and
+    // registers what it returns as the disposer — the plugin hands
+    // `() => () => {restore}`, so the mock must capture the returned fn.
+    effect: (execute) => {
+      const produced = execute()
+      if (typeof produced === 'function') disposables.push(produced)
+      return { async dispose() { for (const d of disposables.splice(0).reverse()) d() } }
+    },
+    get: () => undefined,   // pluginPackages absent → the meta shim is skipped
   }
+  const disposables = []
   let threw
   try { mod.apply(ctx) } catch (e) { threw = e }
   check('apply does not throw', threw === undefined, threw && threw.message)
   check('requestRejection bypassed', connection.requestRejection() === undefined)
   check('authorizeIndex bypassed', connection.authorizeIndex() === true)
   check('authenticatedUrl clean', connection.authenticatedUrl('http://x') === 'http://x')
-  if (typeof ctx._dispose === 'function') {
-    ctx._dispose()
+  if (disposables.length > 0) {
+    for (const dispose of disposables) dispose()
     check('dispose restores originals', connection.requestRejection() === 401 && connection.authorizeIndex() === false)
   } else {
     check('dispose hook registered', false)

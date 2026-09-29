@@ -7,11 +7,15 @@
 // harness vendors (pnpm store), against the versions declared by the upstream
 // packages in deepseek-harness/, and reports both directions.
 //
-// Baseline (2026-09-23): the plugins target the dsh-v0.1.7-alpha.2 train, whose
-// client settings service is `configForms` (the old `settingsScope` is gone) and
-// whose vendored cordis is 4.0.4. Every peer floor is therefore asserted to be
-// exactly `>=<the version this checkout declares>` -- for cordis that is the
-// vendor copy, not the dsh release train.
+// Baseline (2026-09-29, was 2026-09-23): the plugins target the dsh-v0.2.0-rc.1
+// train (0.1.7-alpha.2 → 0.2.0-rc.1, 763 commits). 0.2.0 adds a boot-time peer
+// compatibility preflight (app-boot `plugin-compatibility.ts`) that DISABLES a
+// profile row whose `@deepseek-ai/dsh*` peers are not satisfied by the running
+// runtime (semver, includePrerelease), unless an exact-version exemption is
+// granted via `dsh plugin allow-version` -- so a wrong floor is no longer just
+// "un-installable", it silently disables the plugin. The floor stays the pure
+// lower bound of the train we ship against; cordis is still the vendor pin
+// (4.0.4), schemastery the vendor pin (3.18.4).
 //
 // It also parses every package.json with Node's JSON.parse rather than a lenient
 // reader: this workspace was once bitten by a shell round-trip that replaced an
@@ -48,20 +52,48 @@ console.log(`semver ${require_(path.join(store, semverDir, 'node_modules/semver/
   `  (vendored by the harness at ${semverDir})`)
 
 // ── what the harness actually declares ───────────────────────────────────────
-// cordis is read from vendor/ (its own pin), everything else from the workspace.
-const UPSTREAM = {
-  '@deepseek-ai/dsh-settings': 'deepseek-harness/packages/settings/settings/package.json',
-  '@deepseek-ai/dsh-client-connection': 'deepseek-harness/packages/client/connection/package.json',
-  '@deepseek-ai/dsh-host-webserver': 'deepseek-harness/packages/host/webserver/package.json',
-  '@deepseek-ai/cordis': 'deepseek-harness/vendor/cordis/package.json',
-}
+// Scan the whole checkout for every published package name → version, so ANY
+// `@deepseek-ai/dsh-*` peer resolves (0.2.0's preflight checks every dsh peer,
+// so the probe must too). Vendor copies (cordis, schemastery) win over any
+// workspace row of the same name, since that is the pin the harness ships.
 const upstreamVersion = {}
-for (const [name, rel] of Object.entries(UPSTREAM)) {
-  try { upstreamVersion[name] = readJson(rel).version } catch { upstreamVersion[name] = undefined }
+const scanRoots = [
+  'deepseek-harness/packages',
+  'deepseek-harness/apps',
+  'deepseek-harness/examples',
+]
+const scanDir = (dir, depth = 0) => {
+  if (depth > 4) return
+  let entries
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+  const manifest = path.join(dir, 'package.json')
+  if (fs.existsSync(manifest)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'))
+      if (typeof pkg.name === 'string' && typeof pkg.version === 'string' && !pkg.private) {
+        upstreamVersion[pkg.name] ??= pkg.version
+      }
+    } catch { /* an unreadable manifest is not this probe's subject */ }
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name.startsWith('.')) continue
+    scanDir(path.join(dir, entry.name), depth + 1)
+  }
+}
+for (const rel of scanRoots) scanDir(path.join(root, rel))
+for (const vendor of ['vendor/cordis', 'vendor/schemastery']) {
+  try {
+    const pkg = readJson(`deepseek-harness/${vendor}/package.json`)
+    if (typeof pkg.name === 'string') upstreamVersion[pkg.name] = pkg.version
+  } catch { /* vendor copy absent */ }
 }
 console.log('\nupstream versions in this checkout:')
-for (const [name, v] of Object.entries(upstreamVersion)) {
-  console.log(`  ${name.padEnd(38)} ${v ?? '<not present>'}`)
+const peerNames = new Set()
+for (const plugin of ['dsh-force-compact', 'dsh-web-ding', 'dsh-local-no-auth']) {
+  for (const name of Object.keys(readJson(`${plugin}/package.json`).peerDependencies ?? {})) peerNames.add(name)
+}
+for (const name of [...peerNames].sort()) {
+  console.log(`  ${name.padEnd(38)} ${upstreamVersion[name] ?? '<NOT FOUND IN CHECKOUT>'}`)
 }
 
 const PLUGINS = ['dsh-force-compact', 'dsh-web-ding', 'dsh-local-no-auth']
@@ -103,12 +135,20 @@ for (const plugin of PLUGINS) {
 console.log('\n=== range boundary semantics ===')
 const FLOOR = `>=${harnessVersion}`
 check(semver.satisfies(harnessVersion, FLOOR), `${harnessVersion} satisfies ${FLOOR} (we are installable here)`)
-check(!semver.satisfies('0.1.6-alpha.2', FLOOR), `0.1.6-alpha.2 is excluded by ${FLOOR} (no configForms there)`)
-check(!semver.satisfies('0.1.7-alpha.1', FLOOR), `0.1.7-alpha.1 (earlier prerelease of the tuple) is excluded by ${FLOOR}`)
-check(semver.satisfies('0.1.7-alpha.2', FLOOR), `the baseline itself (0.1.7-alpha.2) is admitted`)
-check(semver.satisfies('0.1.7', FLOOR), `0.1.7 (release) is admitted (>= has no upper cap)`)
-check(semver.satisfies('0.1.8', FLOOR), `0.1.8 is admitted (>= has no upper cap)`)
-check(!semver.satisfies('0.1.5', FLOOR), `0.1.5 (release) is excluded by ${FLOOR}`)
+check(semver.satisfies(harnessVersion, FLOOR, { includePrerelease: true }),
+  `${harnessVersion} satisfies ${FLOOR} with includePrerelease (what the 0.2.0 preflight uses)`)
+check(!semver.satisfies('0.1.6-alpha.2', FLOOR, { includePrerelease: true }),
+  `0.1.6-alpha.2 is excluded by ${FLOOR}`)
+check(!semver.satisfies('0.1.7-alpha.2', FLOOR, { includePrerelease: true }),
+  `0.1.7-alpha.2 is excluded by ${FLOOR} (previous baseline, pre-0.2.0 surface)`)
+check(!semver.satisfies('0.2.0-rc.0', FLOOR, { includePrerelease: true }),
+  `0.2.0-rc.0 (earlier prerelease of the tuple) is excluded by ${FLOOR}`)
+check(semver.satisfies('0.2.0', FLOOR, { includePrerelease: true }),
+  `0.2.0 (release) is admitted (>= has no upper cap)`)
+check(semver.satisfies('0.2.1', FLOOR, { includePrerelease: true }),
+  `0.2.1 is admitted (>= has no upper cap)`)
+check(!semver.satisfies('0.1.7', FLOOR, { includePrerelease: true }),
+  `0.1.7 (release) is excluded by ${FLOOR}`)
 
 console.log(`\n${failed === 0 ? 'ALL CHECKS PASSED' : 'FAILURES PRESENT'} -- ${passed} passed, ${failed} failed`)
 process.exit(failed === 0 ? 0 : 1)
