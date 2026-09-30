@@ -10,3 +10,7 @@ QQ*.png
 # Session-local agent state (daily work logs, caches). Project-related, but not
 # something the shared repo should carry — and `git add .` would otherwise sweep it.
 .workbuddy/
+
+# A stray DSH_HOME that a dev instance created in the workspace root (profiles,
+# sessions, credentials). Runtime state, never shared.
+.dsh-home/

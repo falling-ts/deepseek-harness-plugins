@@ -20,7 +20,12 @@ const require = createRequire('D:/deepseek-harness-plugins/deepseek-harness/apps
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3180)
+// `dsh web` gates every route behind an auth token that is regenerated on each
+// start; pass it in via DSH_TOKEN (grep it out of the server log) or the probe
+// only ever sees 401s. An empty token keeps the old bare-URL behaviour.
+const TOKEN = (process.env.DSH_TOKEN ?? '').trim()
 const BASE = `http://127.0.0.1:${PORT}`
+const APP = TOKEN === '' ? `${BASE}/` : `${BASE}/?token=${encodeURIComponent(TOKEN)}`
 const OUT = 'D:/deepseek-harness-plugins/exploration'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -50,7 +55,7 @@ page.on('response', (response) => {
 })
 
 const report = {}
-const nav = await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+const nav = await page.goto(APP, { waitUntil: 'domcontentloaded', timeout: 60000 })
 report.indexStatus = nav?.status()
 report.title = await page.title()
 
