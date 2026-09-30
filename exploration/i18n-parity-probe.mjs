@@ -199,6 +199,7 @@ function checkPlugin({ name, file, hasHostBadge }) {
 
 checkPlugin({ name: 'dsh-force-compact', file: 'dsh-force-compact/web/client.js', hasHostBadge: true })
 checkPlugin({ name: 'dsh-web-ding', file: 'dsh-web-ding/web/client.js', hasHostBadge: false })
+checkPlugin({ name: 'dsh-start-command', file: 'dsh-start-command/web/client.js', hasHostBadge: false })
 
 console.log(`\n${failed === 0 ? 'ALL CHECKS PASSED' : 'FAILURES PRESENT'} — ${passed} passed, ${failed} failed`)
 process.exit(failed === 0 ? 0 : 1)

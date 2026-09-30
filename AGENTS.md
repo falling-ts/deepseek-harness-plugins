@@ -87,6 +87,7 @@
 | `dsh-force-compact/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-force-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-force-compact.git`（branch `main`） |
 | `dsh-local-no-auth/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-local-no-auth`，纯 Host、无客户端半部） | `git@github.com:falling-ts/dsh-local-no-auth.git`（branch `main`） |
 | `dsh-web-ding/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-web-ding`，Host + 浏览器 client 两半） | `git@github.com:falling-ts/dsh-web-ding.git`（branch `main`） |
+| `dsh-start-command/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-start-command`，Host + 浏览器 client 两半；挂在 `agent/pre-step` 上执行"开始前命令"） | `git@github.com:falling-ts/dsh-start-command.git`（branch `main`） |
 | `awesome-dsh-plugin/` | 子模块（社区目录 fork：`data/plugins/*.yml` + 重新生成的双语 README） | `git@github.com:falling-ts/awesome-dsh-plugin.git`（fork，branch `main`） |
 | `docs/` | 工作区级技术文档（后端接口目录、上下文管理/会话结构分析、llama.cpp 适配方案、**插件规范符合性评审**等） | — |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
@@ -127,7 +128,9 @@
   缺少该声明时 `dsh plugin add` 只当普通依赖安装，不激活 patch 层。
 - 安装：`dsh plugin --profile <profile> add github:falling-ts/<插件>`（或本地路径）；
   开发期可不安装，直接 `dsh web --patch <插件>/cordis.patch.yml` 挂载。
-- 插件是**纯 Host 监听器**：不引入 timer、内存态存储或 Client UI；
+- 插件不引入 timer、不引入持久化状态；需要设置分区或浏览器行为的插件另带一个**客户端半部**
+  （`web/client.js`，`dsh.client` 声明），其工厂必须无副作用、资源全在 `apply` 里经 `ctx.effect`
+  注册并归还，且不手拼 wire 信封。
   各插件自身的规则见其 `AGENTS.md`（中文）。
 - 各插件 `AGENTS.md` 中的 `../AGENTS.md`（collection conventions）指向本文件。
 - 插件仓库内的 `CLAUDE.md` 固定只写一行 `@AGENTS.md`（引用本插件的 AGENTS.md），
@@ -156,6 +159,10 @@ tag `dsh-v0.2.0-rc.1` 对应的版本列车：`@deepseek-ai/cordis: ">=4.0.4"`�
 - `dsh-force-compact`：`dsh-settings`、`dsh-compaction`、`dsh-llm`、`dsh-token-meter`、
   `dsh-agent`、`dsh-session`、`dsh-session-projection`、`dsh-commands`、`schemastery`
   + 客户端三个同上
+- `dsh-start-command`（2026-09-30 新增，同一基线）：`dsh-settings`（Config 表单 +
+  `settings.configure`）、`dsh-agent`（`agent/pre-step` 载荷契约与 `ctx.agents` 注册表）、
+  `dsh-shell`（`ctx.shell.resolve/execute`）、`dsh-sandbox-policy`（按会话解析沙箱策略）、
+  `schemastery`（Config schema）+ 客户端三个同上
 
 为什么 0.1.7 及以前必须排除（不是洁癖，是硬依赖）：
 
@@ -248,7 +255,9 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 
 按上游 `docs/user/develop/**` + `cordis-plugin-development` skill（`references/host-plugin.md` /
 `ui-plugin.md` / `practices.md`）+ `packages/AGENTS.md` / `packages/client/AGENTS.md` 逐条核对过
-三个插件。**完整结论、整改清单与风险登记见
+三个插件。（2026-09-30 晚新增的第四个插件 `dsh-start-command` 是**照这套规则新写**的，其自查
+结论与有意偏离见该插件 `AGENTS.md` 的"官方规范符合性"一节，含实测发现的
+"pwsh `>>` 落 UTF-16、宿主 `read` 判其为 binary 而拒读"这条坑。）**完整结论、整改清单与风险登记见
 [docs/plugin-conformance-review.zh.md](docs/plugin-conformance-review.zh.md)**；三条必须记住的：
 
 - **显示元数据**：标题/描述要放 `locale/<lang>.json` 的 `meta`，图标是清单顶层 `icon`（相对路径、
@@ -269,7 +278,11 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 `icon` 存在与体积、`exports`/`files` 覆盖（做过反向验证：移走 `locale/zh.json` 即红）；新增
 `exploration/wd-signal-title-probe.mjs`（27 项：Host 侧标题读取与信号契约的 7 种降级）；
 `exploration/wd-audio-unlock-apply-probe.mjs` 扩到 31 项（工厂纯净、apply 所有权与撤销、零 RPC、
-首帧两种情形）。
+首帧两种情形）；`dsh-start-command` 自带三支：`exploration/sc-prestep-probe.mjs`（63 项，离线：
+门禁矩阵 / 空值零副作用 / 执行路径 / 回合闩锁 / waterfall 语义）、
+`exploration/sc-e2e-probe.mjs 3080`（17 项，真回合：命令确实执行、早于本回合首条模型消息、
+模型在第一个步骤读到产物；清空后不再执行）、
+`exploration/sc-settings-ui-probe.mjs 3080`（7 项，真浏览器：分区渲染 + 读路径 + 经「保存」的写路径）。
 
 ### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
 
@@ -300,7 +313,7 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
   承载 GUI 的主入口是**桌面应用**（`DeepSeek Harness.exe`，19387，home `~/.dsh`）；
   本工作区只有这一个 web 实例。
 - **脚本会先引导 profile 的插件**（`[1/4]` 步）：检查 `$DSH_HOME/profiles/web/package.json`
-  是否含三个工作区插件，缺了才 `dsh plugin --profile web add` 一次（`link:` 指向工作树，
+  是否含四个工作区插件，缺了才 `dsh plugin --profile web add` 一次（`link:` 指向工作树，
   改源码即生效）。幂等、约 600ms。**这一步不能省**——web home 独立于桌面应用，没有它新
   home 起出来的是空 profile（免鉴权插件不在 → 浏览器报 authentication required）。脚本同时把
   `[web] DSH_HOME / port / plugin src / log` 四行打到 stdout，供事后核对加载的是哪份源。

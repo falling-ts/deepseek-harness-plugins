@@ -25,7 +25,7 @@ import { dirname, extname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** 三个自有插件目录名。 */
-const PLUGINS = ['dsh-force-compact', 'dsh-local-no-auth', 'dsh-web-ding']
+const PLUGINS = ['dsh-force-compact', 'dsh-local-no-auth', 'dsh-web-ding', 'dsh-start-command']
 
 /** 必须已被替换掉的旧基线字面量。 */
 const STALE = ['0.1.6-alpha.1', '0.1.7-alpha.1', '"4.0.2"']

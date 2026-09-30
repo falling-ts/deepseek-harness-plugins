@@ -124,6 +124,7 @@ function extractTokenSheet(src, file) {
 const plugins = [
   { name: 'dsh-force-compact', file: 'dsh-force-compact/web/client.js', settingsMarker: '// ── 视觉设计' },
   { name: 'dsh-web-ding', file: 'dsh-web-ding/web/client.js', settingsMarker: '// ── 设置分区 UI' },
+  { name: 'dsh-start-command', file: 'dsh-start-command/web/client.js', settingsMarker: '// ── 设置分区 UI' },
 ]
 
 const sheets = []
@@ -224,8 +225,8 @@ for (const plugin of plugins) {
     `[${stray.join(' ')}]`)
 }
 
-check(sheets.length === 2 && sheets[0] === sheets[1],
-  'both plugins inject an identical token sheet (shared --fcts- namespace)')
+check(sheets.length === plugins.length && sheets.every((s) => s === sheets[0]),
+  `all ${plugins.length} plugins inject an identical token sheet (shared --fcts- namespace)`)
 
 console.log(`\n${failed === 0 ? 'ALL CHECKS PASSED' : 'FAILURES PRESENT'} — ${passed} passed, ${failed} failed`)
 process.exit(failed === 0 ? 0 : 1)

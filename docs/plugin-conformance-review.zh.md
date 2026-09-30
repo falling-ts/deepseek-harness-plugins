@@ -1,4 +1,4 @@
-# 三个插件对官方插件开发规范的符合性评审（2026-09-30）
+# 插件对官方插件开发规范的符合性评审（2026-09-30：三个既有插件 + 第四个按同一规范新写）
 
 本文件是**一次性评审的存档**：把"我们的写法 vs 上游官方规范"的逐条核对结果、已整改项、以及
 **有意保留的偏离**固定下来，供后续改动前查阅。规范原文全部在上游 checkout 里，本文只做对照与结论。
@@ -119,6 +119,41 @@ snapshot、Agent Note、文档预算、`verify-*` 闸门等属**仓内包**规�
    `refuseStart` 必须在**任何服务都不可用**（含 logger）时仍能往 stderr 说话，且那行
    `[dsh-local-no-auth] active: …` 是启动脚本 grep 的判据。
 
+## 第四个插件：`dsh-start-command`（2026-09-30 晚新增）
+
+这一节与上面三节性质不同：它不是"回头核对既有插件"，而是**按这套规范从零写**的第四个插件
+（`@falling-ts/dsh-start-command`，0.1.0）。逐条自查结论（细节与理由见该插件
+[AGENTS.md](../dsh-start-command/AGENTS.md)）：
+
+| 规范域 | 结论 |
+|---|---|
+| 组合包 manifest / patch 层（`dsh.bundle.patch`、按**包名**引用、id 唯一） | ✅ |
+| patch row `id` = settings 命名空间 = 客户端常量（三处逐字相同） | ✅（探针第一组断言就是这条） |
+| Host 插件导出形态（只具名 `name`/`Config`/`apply`、**无 default**、不混形态） | ✅ |
+| Config：唯一可调项 `startCommand` 进 schemastery、`.volatile()`、无硬编码 tunable | ✅ |
+| 注册即 effect（`ctx.on` 监听、样式表/词典/快照订阅/语言目录项全走 `ctx.effect`） | ✅ |
+| Waterfall 纪律（先 `await next()`、`next()` 恰好一次、下游 reject 时不执行命令） | ✅ |
+| 只走官方扩展点（`agent/pre-step` 是 CC 桥 `UserPromptSubmit` 的映射缝） | ✅ |
+| 可选服务用 `ctx.get` / 惰性 `ctx.inject(['settings'])`，无硬 `inject` | ✅ |
+| 客户端模块契约（`id` = 包名、React 走模块表、基线模块 `dsh-client-store` 不重复声明） | ✅ |
+| 工厂无副作用 / 资源在 `apply` 内注册并归还 | ✅ |
+| 不写自己组件之外的 DOM、不 append 到 `body`（本插件无浮层） | ✅ |
+| 传输归 Connection（客户端**零 RPC**，读写全走 `configForms` 镜像） | ✅ |
+| UI 文案归 locale（zh 键集为事实源 + en/ja/ko）、主题走共享 `--fcts-*` token 表 | ✅ |
+| 显示元数据（`locale/{en,zh}.json` 的 `meta` + 顶层 `icon` + 两者都经 `exports`） | ✅（一开始就有，未走"先缺后补"） |
+| 门禁纳入（`plugin-manifest-check` / `i18n-parity-probe` / `theme-token-probe`） | ✅ |
+
+**有意保留的偏离**（与上面三节同源，勿"顺手修"）：peer 只声明 `peerDependencies`（plain JS、
+无独立类型检查）；`--fcts-*` 浅色分支保留字面值；**命令输出不进模型上下文**（本插件的核心取向：
+不新增模型可见输入，因此也不需要新的会话事件）；`agent/pre-step` 上吞掉异常（与官方 hook 协议
+一致，代价是失败只体现在宿主日志里，故"没执行成"一律标 warn）。
+
+**本次新增的一条实测坑（与规范无关，但会咬到探针作者）**：pwsh 的 `echo … >> file` 落盘是
+**UTF-16LE + BOM**，宿主的 `read` 工具会把它判为 `binary file` 而**拒读**
+（`Error: cannot read "…": binary file …`）。写标记类文件要 `Add-Content -Encoding ascii`；
+读回这类文件要按 BOM 判定解码。这条是被 e2e 探针的失败断言逼出来的——当时模型只好在后续步骤里
+自己用 `[System.IO.File]::ReadAllText($p,[Text.Encoding]::Unicode)` 解码才拿到内容。
+
 ## 验证（全部退出码 0，2026-09-30）
 
 离线闸门：
@@ -141,6 +176,7 @@ node exploration/abortsignal-timeout-boundary-probe.mjs
 node exploration/lna-refusestart-probe.mjs      # 见下方"已知红灯"
 node exploration/wd-signal-title-probe.mjs      # 新增，27 项
 node exploration/wd-audio-unlock-apply-probe.mjs  # 扩展到 31 项
+node exploration/sc-prestep-probe.mjs           # 新增（start-command），63 项
 node exploration/fc-release-artifact-check.mjs dsh-force-compact
 ```
 
@@ -150,8 +186,16 @@ node exploration/fc-release-artifact-check.mjs dsh-force-compact
 node exploration/fc-livetext-e2e-probe.mjs 3099            # 17 项
 node exploration/wd-ding-trigger-probe.mjs 3099            # 8 项断言
 node exploration/wd-browser-probe.mjs 3099                 # 真回合：缓存记录带上真实会话标题
-node exploration/web-020-plugin-sections-probe.mjs 3099   # 两个设置分区正常渲染
+node exploration/web-020-plugin-sections-probe.mjs 3099   # 设置分区正常渲染（现已三个）
 node exploration/web-020-headless-probe.mjs 3099           # 仅探针自身探的 /api/settings/describe 404
+```
+
+`dsh-start-command` 的线上验证跑在 **3080**（它已装进 web profile，见根 AGENTS.md 的
+"两个 home" 一节；探针**不信**继承来的 `DSH_HOME`，而是按 sessionId 在候选 home 里命中）：
+
+```
+node exploration/sc-e2e-probe.mjs 3080            # 17 项：真回合两连（配置→执行→清空）
+node exploration/sc-settings-ui-probe.mjs 3080    # 7 项：分区渲染 + 读路径 + 写路径（真浏览器）
 ```
 
 显示元数据端到端：`pluginInventory/list` 里三个 entry 的 `meta.title`（en/zh）、

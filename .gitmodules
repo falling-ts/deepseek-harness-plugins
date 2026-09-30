@@ -17,3 +17,7 @@
 [submodule "dsh-local-no-auth"]
 	path = dsh-local-no-auth
 	url = git@github.com:falling-ts/dsh-local-no-auth.git
+[submodule "dsh-start-command"]
+	path = dsh-start-command
+	url = git@github.com:falling-ts/dsh-start-command.git
+	branch = main

@@ -107,7 +107,7 @@ echo "[web] log           = $LOG"
 # change is picked up live by the profile HMR watcher (packages/boot/hmr), so
 # this is also safe to run against an instance that is already up.
 PROFILE_MANIFEST="$DSH_HOME/profiles/web/package.json"
-PLUGIN_NAMES=(dsh-force-compact dsh-local-no-auth dsh-web-ding)
+PLUGIN_NAMES=(dsh-force-compact dsh-local-no-auth dsh-web-ding dsh-start-command)
 NEED_INSTALL=0
 for name in "${PLUGIN_NAMES[@]}"; do
   if [ ! -f "$PROFILE_MANIFEST" ] || ! grep -q "@falling-ts/$name" "$PROFILE_MANIFEST"; then
