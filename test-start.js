@@ -499,7 +499,6 @@ function buildPopupScript(opts) {
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $WarningPreference = 'SilentlyContinue'
-${psSignalSnippet(opts.mode)}
 $big       = ${psLiteral(opts.text)}
 $app       = ${psLiteral(APP_NAME)}
 $countFile = ${psLiteral(COUNT_FILE)}
@@ -520,6 +519,7 @@ try {
 } catch { }
 $n = $n + 1
 try { Set-Content -LiteralPath $countFile -Value $n -Encoding ascii } catch { }
+${psSignalSnippet(opts.mode)}
 
 if (-not $silent) {
   try { [System.Media.SystemSounds]::Asterisk.Play() } catch { }
