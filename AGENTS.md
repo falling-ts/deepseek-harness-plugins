@@ -278,11 +278,19 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 `icon` 存在与体积、`exports`/`files` 覆盖（做过反向验证：移走 `locale/zh.json` 即红）；新增
 `exploration/wd-signal-title-probe.mjs`（27 项：Host 侧标题读取与信号契约的 7 种降级）；
 `exploration/wd-audio-unlock-apply-probe.mjs` 扩到 31 项（工厂纯净、apply 所有权与撤销、零 RPC、
-首帧两种情形）；`dsh-start-command` 自带三支：`exploration/sc-prestep-probe.mjs`（63 项，离线：
+首帧两种情形）；`dsh-start-command` 自带四支：`exploration/sc-prestep-probe.mjs`（63 项，离线：
 门禁矩阵 / 空值零副作用 / 执行路径 / 回合闩锁 / waterfall 语义）、
 `exploration/sc-e2e-probe.mjs 3080`（17 项，真回合：命令确实执行、早于本回合首条模型消息、
 模型在第一个步骤读到产物；清空后不再执行）、
-`exploration/sc-settings-ui-probe.mjs 3080`（7 项，真浏览器：分区渲染 + 读路径 + 经「保存」的写路径）。
+`exploration/sc-settings-ui-probe.mjs 3080`（7 项，真浏览器：分区渲染 + 读路径 + 经「保存」的写路径）、
+`exploration/sc-live-verify.mjs 3080`（门 5 活体正反两支：**先等到空窗再发话**才执行 / 会话 A 在跑时
+投递的会话 B 被压制但回合照常跑完；`--toast` 追加真实 `test-start.js` 一段）。
+
+> ⚠️ **测 `dsh-start-command` 时，探针发起者自己往往就是那个"在跑的 agent"**（2026-09-30 实测：
+> 本会话就跑在 3080 上，`session/list` 里一直 `running:true`）。在自己的回合里连发真实回合，
+> 命令**一次都不会执行**——那不是缺陷，是门 5 在正常工作。判据是 `session/list` 的 `running`
+> 字段；自动化请用 `sc-live-verify.mjs`（它会等空窗），或换隔离实例
+> （`PORT=3099 DSH_HOME='D:/…/.dsh-verify'`）。
 
 ### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
 
