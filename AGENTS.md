@@ -268,6 +268,34 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 - `echo Y |` 前缀是修复 pnpm 交互式重装提示（`Proceed? (Y/n)`）：
   后台进程无 stdin 时会永久挂死在该提示上。
 
+## 装插件不必重启运行中的实例（2026-09-30 实测，profile HMR）
+
+`packages/boot/hmr/src/index.ts` 的 profile HMR 会**监视三样东西**：profile 的
+`package.json` 清单（只看 `dsh.profile.bundles` 是否变化）、profile 自己的
+`cordis.patch.yml`、以及 `$DSH_HOME/cordis.patch.yml`。任一变化即调
+`reconcileProfilePatches` **在进程内重新装配补丁层**，因此：
+
+- `dsh plugin --profile <p> add <包>` 写完清单的瞬间，**运行中的实例就热加载了该插件**，
+  不需要重启。实测：3080 实例在 `add @falling-ts/dsh-local-no-auth` 后几秒内日志出现
+  `[dsh-local-no-auth] active: ... URLs printed clean`，`/` 由 401 变 200。
+- 所以"改 profile 要重启才生效"是**错的**；老笔记里的 `patchReload: live` 这个名字在
+  0.2.0 源码里已不存在（全仓 grep 无此键），真正干活的机制是上面的 HMR 监视器。
+- 反过来说：**插件源码**（`index.js` / `web/`）的改动本来就不需要重装——profile 里是
+  `link:` 软链，直接指到仓库工作树；只有**清单/补丁层**的变化才走上面这条热重载。
+
+**装到哪个 home 是常见坑**：`dsh web` 的 profile 目录是 `$DSH_HOME/profiles/web`，
+而 `harness-server.sh` / `harness-server-dev.sh` 现在默认 `DSH_HOME=~/.dsh-web`；
+若手工 `pnpm dsh web` 时 `DSH_HOME` 指到别处（例如桌面应用的 `~/.dsh`），那里会是
+一个**全新空的 `web` profile**（无任何插件）→ 表现为浏览器报
+`dsh web authentication required; reopen the URL printed by dsh web`（因为免鉴权插件不在）。
+排查第一步就是确认实例用的是哪个 home：
+`netstat -ano | findstr :<port>` 拿 PID，再看 `$DSH_HOME/profiles/web/package.json`
+的 `dsh.profile.bundles` 里有没有你的插件。
+
+**注意 `~/.dsh` 是桌面应用的家**：让 web 实例与它共用一个 home 会抢 session 写租约
+（`session/writer-held` → 界面显示"当前会话已被占用"），这正是 launch 脚本把 web 端默认
+挪到 `~/.dsh-web` 的原因。
+
 ## harness-server-dev.sh（隔离第二实例 / 开发端口 3180）
 
 - 用法：`bash harness-server-dev.sh`；`DEV_PORT`（默认取 `${DEV_PORT:-${PORT:-3180}}`）。
