@@ -8,7 +8,7 @@
  *  - still passes through `header.system` when present (pre-V3);
  *  - always forwards `header.tools`.
  *
- * Run: node D:\deepseek-harness-plugins\exploration\fc-v3-header-probe.mjs
+ * Run: node D:\AI\deepseek-harness-plugins\exploration\fc-v3-header-probe.mjs
  */
 import { headerPrefix } from '../dsh-force-compact/src/engine/summarizer.js'
 

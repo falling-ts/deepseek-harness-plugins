@@ -11,7 +11,7 @@
 // filesystem root, then compares the installed version against the declared range.
 //
 // Usage (from the harness checkout root):
-//   node D:\deepseek-harness-plugins\exploration\node-modules-fit-audit.mjs [harnessRoot]
+//   node D:\AI\deepseek-harness-plugins\exploration\node-modules-fit-audit.mjs [harnessRoot]
 //
 // Exit code 0 = no problems, 1 = at least one MISSING/MISMATCH, 2 = script error.
 
@@ -20,7 +20,7 @@ import { readFileSync, existsSync, realpathSync, readdirSync, statSync } from 'n
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-const HARNESS = path.resolve(process.argv[2] || 'D:\\deepseek-harness-plugins\\deepseek-harness');
+const HARNESS = path.resolve(process.argv[2] || 'D:\\AI\\deepseek-harness-plugins\\deepseek-harness');
 
 // ---- semver: not a root devDependency, so load the copy pnpm keeps in .pnpm ----
 function loadSemver() {

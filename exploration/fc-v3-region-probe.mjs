@@ -7,7 +7,7 @@
  * covering it), and that it DOES start at node 0 when there is no system head
  * (pre-V3 compatibility).
  *
- * Run: node D:\deepseek-harness-plugins\exploration\fc-v3-region-probe.mjs
+ * Run: node D:\AI\deepseek-harness-plugins\exploration\fc-v3-region-probe.mjs
  */
 import {
   selectRegion,

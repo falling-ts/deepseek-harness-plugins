@@ -1,6 +1,6 @@
 // Replicate dsh_plugin_packages' barePackageManifest() with the REAL anchors and test
 // which third-party plugin package.json each anchor can resolve.
-// Run: node D:/deepseek-harness-plugins/exploration/reqext-resolve.mjs
+// Run: node D:/AI/deepseek-harness-plugins/exploration/reqext-resolve.mjs
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -8,8 +8,8 @@ import { pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 
 const PROFILE_DIR = `C:/Users/zghyu/.dsh/profiles/web`
-const HARNESS_DIR = 'D:/deepseek-harness-plugins/deepseek-harness'
-const PLUGIN_PKG = 'D:/deepseek-harness-plugins/deepseek-harness/packages/llm/plugin-package-inventory-deepseek/src/index.ts'
+const HARNESS_DIR = 'D:/AI/deepseek-harness-plugins/deepseek-harness'
+const PLUGIN_PKG = 'D:/AI/deepseek-harness-plugins/deepseek-harness/packages/llm/plugin-package-inventory-deepseek/src/index.ts'
 
 const anchors = {
   'profileBase (host-tree treeBase)': pathToFileURL(PROFILE_DIR + '/').href,

@@ -8,9 +8,9 @@
  *  2. A replace covering surface node 0 (the `system/message`) is rejected by
  *     `assertSystemHeadRewrite` — which is why the region selectors must drop it.
  *
- * Run: node D:\deepseek-harness-plugins\exploration\fc-v3-surfaceop-probe.mjs
+ * Run: node D:\AI\deepseek-harness-plugins\exploration\fc-v3-surfaceop-probe.mjs
  */
-const SESSION_LIB = 'file:///D:/deepseek-harness-plugins/deepseek-harness/packages/core/session/lib/index.js'
+const SESSION_LIB = 'file:///D:/AI/deepseek-harness-plugins/deepseek-harness/packages/core/session/lib/index.js'
 const { foldSurface } = await import(SESSION_LIB)
 
 const sys = {

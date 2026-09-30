@@ -1,6 +1,6 @@
 // Boot the `web` profile on a free port and call deepseekLlmApiExtensions.prepare()
 // directly, catching the FULL error (including cause) that the session log never
-// surfaces. Run: node --import tsx/esm D:/deepseek-harness-plugins/exploration/reqext-cause.ts
+// surfaces. Run: node --import tsx/esm D:/AI/deepseek-harness-plugins/exploration/reqext-cause.ts
 import { runProfile } from '../deepseek-harness/apps/cli/src/profile-boot.ts'
 import { createLaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 

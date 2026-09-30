@@ -22,7 +22,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-const HARNESS = 'D:\\deepseek-harness-plugins\\deepseek-harness'
+const HARNESS = 'D:\\AI\\deepseek-harness-plugins\\deepseek-harness'
 const APPLY = process.argv.includes('--apply')
 
 // 残留根：源文件在上游发布版里已被删除，目录里只剩旧世代的 node_modules。

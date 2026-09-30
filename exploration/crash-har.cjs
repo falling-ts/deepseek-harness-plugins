@@ -3,7 +3,7 @@
 // dev log so the captured failure-object dumps can be inspected verbatim.
 'use strict';
 const fs = require('fs');
-const LOG = 'D:/deepseek-harness-plugins/dsh-web-3080.log';
+const LOG = 'D:/AI/deepseek-harness-plugins/dsh-web-3080.log';
 const lines = fs.readFileSync(LOG, 'utf8').split(/\r?\n/);
 const want = process.argv[2] === 'all' ? Infinity : Number(process.argv[2] || 3);
 let shown = 0;

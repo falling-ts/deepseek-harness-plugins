@@ -5,7 +5,7 @@
  *
  * This is a module-graph / registration check, NOT a functional harness test.
  *
- * Run: node D:\deepseek-harness-plugins\exploration\fc-plugin-load-probe.mjs
+ * Run: node D:\AI\deepseek-harness-plugins\exploration\fc-plugin-load-probe.mjs
  */
 
 const ROOT = new URL('../', import.meta.url)

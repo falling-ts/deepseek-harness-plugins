@@ -9,13 +9,13 @@
  * Run: node exploration/chat-output-view-probe.mjs [port]
  */
 import { createRequire } from 'node:module'
-const require = createRequire('D:/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3080)
 const BASE = `http://127.0.0.1:${PORT}`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const OUT = 'D:/deepseek-harness-plugins/exploration'
+const OUT = 'D:/AI/deepseek-harness-plugins/exploration'
 
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } })

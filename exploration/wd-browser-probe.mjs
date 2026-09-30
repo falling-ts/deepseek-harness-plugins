@@ -11,7 +11,7 @@
  * Run:  node exploration/wd-browser-probe.mjs [port]
  */
 import { createRequire } from 'node:module'
-const require = createRequire('D:/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3080)

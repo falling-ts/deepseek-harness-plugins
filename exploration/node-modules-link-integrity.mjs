@@ -3,12 +3,12 @@
 // dangling symlinks (or missing workspace links) behind. Walk the real tree,
 // follow nothing, and report every symlink whose target does not exist.
 //
-// Usage: node D:\deepseek-harness-plugins\exploration\node-modules-link-integrity.mjs [root]
+// Usage: node D:\AI\deepseek-harness-plugins\exploration\node-modules-link-integrity.mjs [root]
 
 import { readdirSync, lstatSync, existsSync, realpathSync, readlinkSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve(process.argv[2] || 'D:\\deepseek-harness-plugins\\deepseek-harness');
+const ROOT = path.resolve(process.argv[2] || 'D:\\AI\\deepseek-harness-plugins\\deepseek-harness');
 const SKIP = new Set(['.git']);
 let symlinks = 0;
 let dangling = [];

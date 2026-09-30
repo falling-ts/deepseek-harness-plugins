@@ -43,8 +43,8 @@ const fakeSession = {
   eventAt(seq) { return bySeq.get(seq) },
 }
 
-const shim = await import(pathToFileURL('D:/deepseek-harness-plugins/dsh-force-compact/src/core/session-events.js').href)
-const pairing = await import(pathToFileURL('D:/deepseek-harness-plugins/dsh-force-compact/src/core/pairing.js').href)
+const shim = await import(pathToFileURL('D:/AI/deepseek-harness-plugins/dsh-force-compact/src/core/session-events.js').href)
+const pairing = await import(pathToFileURL('D:/AI/deepseek-harness-plugins/dsh-force-compact/src/core/pairing.js').href)
 
 const all = shim.sessionEvents(fakeSession)
 console.log('[shim] sessionEvents ->', all.length, 'events (surface', surface.length, 'nodes)')

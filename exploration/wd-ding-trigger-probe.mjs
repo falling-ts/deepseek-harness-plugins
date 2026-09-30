@@ -15,7 +15,7 @@
  * Usage: node exploration/wd-ding-trigger-probe.mjs [port]   (default 3080)
  */
 import { createRequire } from 'node:module'
-const require = createRequire('D:/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3080)

@@ -2,9 +2,9 @@
 # Touches nothing in the live checkout; the running 3080 host keeps its own node_modules.
 # Usage: powershell -File exploration\rehearse-piai-0871.ps1
 $ErrorActionPreference = 'Continue'
-$src = 'D:\deepseek-harness-plugins\deepseek-harness'
+$src = 'D:\AI\deepseek-harness-plugins\deepseek-harness'
 $dst = Join-Path $env:TEMP 'dsh-piai-0871'
-$bump = 'D:\deepseek-harness-plugins\exploration\rehearse-piai-0871-bump.mjs'
+$bump = 'D:\AI\deepseek-harness-plugins\exploration\rehearse-piai-0871-bump.mjs'
 
 if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
 git -C $src worktree prune

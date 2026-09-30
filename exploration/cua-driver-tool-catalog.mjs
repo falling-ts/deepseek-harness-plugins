@@ -15,7 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const harness = 'D:/deepseek-harness-plugins/deepseek-harness'
+const harness = 'D:/AI/deepseek-harness-plugins/deepseek-harness'
 const store = path.join(harness, 'node_modules/.pnpm')
 
 // Resolve whatever cua-driver version the harness actually installed, and its
