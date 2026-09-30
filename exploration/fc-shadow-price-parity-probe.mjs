@@ -112,7 +112,13 @@ const MESSAGES = [
   ['system 空内容', { role: 'system', content: [] }],
   ['含图像（无标记）', { role: 'user', content: [IMG] }],
   ['含图像（已离线）', { role: 'user', content: [{ ...IMG, offloaded: true }] }],
-  ['工具结果内嵌图像', { role: 'user', content: [{ type: 'tool-result', content: [IMG] }] }],
+  // rc.2 起 tool result 是 role:'tool' 消息、内容块就是普通块（上游提交
+  // f4a32dbd0a「flatten tool results」删掉了旧的 `tool-result` 块类型）。
+  ['tool 结果内嵌图像（V4 形状）', { role: 'tool', toolCallId: 'tc-1', content: [IMG] }],
+  // 旧形状如今只是一个**未知块类型**：官方走 merge-extensible 的 default 分支按
+  // 结构 JSON 计价，插件的 default 分支必须同价（回归要点：插件曾为它保留专用递归
+  // 分支，导致与官方分叉 4 tokens）。
+  ['未知块（legacy tool-result）', { role: 'user', content: [{ type: 'tool-result', content: [IMG] }] }],
 ]
 
 for (const [name, message] of MESSAGES) {

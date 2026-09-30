@@ -2,9 +2,12 @@
 //
 // Evaluates web/client.js the way the browser module loader does
 // (`window.__ModuleLoader__.load({ id, factory })`), runs `apply(ctx)` against a
-// stub context, then drives the settings snapshot and asserts the visible
-// turn-process label is rewritten. Catches wiring breakage (dangling
-// references, missing disposers) that a syntax check cannot see.
+// stub context, then drives the settings snapshot and asserts the harness 0.2.0
+// running-status row is rewritten: the TextShimmer text (both the real node and
+// the `data-shimmer-text` copy the CSS ::after reads), while the whale animation
+// icon, the divider and the role=status announcement stay untouched. Catches
+// wiring breakage (dangling references, missing disposers) that a syntax check
+// cannot see.
 import { readFileSync } from 'node:fs'
 
 const SRC = readFileSync(new URL('../dsh-force-compact/web/client.js', import.meta.url), 'utf8')
@@ -16,23 +19,30 @@ class TextNode {
 }
 class El {
   constructor(tag) { this.nodeType = 1; this.tagName = tag; this.childNodes = []; this.parentElement = null; this.attrs = {}; this.isConnected = true }
-  get textContent() { return this.childNodes.filter(c => c.nodeType === 3).map(c => c.nodeValue).join('') }
+  get textContent() { return this.childNodes.map(c => (c.nodeType === 3 ? c.nodeValue : c.textContent)).join('') }
   get children() { return this.childNodes.filter(c => c.nodeType === 1) }
   append(child) { child.parentElement = this; this.childNodes.push(child); return child }
   appendChild(child) { return this.append(child) }
   setText(value) { const node = new TextNode(value); node.parentElement = this; this.childNodes = [node]; return node }
+  getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null }
+  setAttribute(name, value) { this.attrs[name] = String(value) }
   matches(selector) {
-    return selector === 'button[data-turn-process] > span'
-      && this.tagName === 'SPAN' && this.parentElement !== null
-      && this.parentElement.tagName === 'BUTTON'
-      && this.parentElement.attrs['data-turn-process'] !== undefined
+    if (selector === '[data-chat-running]') return this.getAttribute('data-chat-running') !== null
+    if (selector === '[data-shimmer]') return this.getAttribute('data-shimmer') !== null
+    if (selector === '[data-shimmer-text]') return this.getAttribute('data-shimmer-text') !== null
+    if (selector === '[role="status"][aria-live="polite"]') return this.attrs.role === 'status' && this.attrs['aria-live'] === 'polite'
+    if (selector === '*') return true
+    return false
   }
-  querySelector(selector) {
-    if (selector !== '[role="status"][aria-live="polite"]') return null
-    return this.children.find(c => c.attrs.role === 'status' && c.attrs['aria-live'] === 'polite') ?? null
+  descendants() {
+    const out = []
+    for (const child of this.children) { out.push(child); out.push(...child.descendants()) }
+    return out
   }
+  querySelectorAll(selector) { return this.descendants().filter(el => el.matches(selector)) }
+  querySelector(selector) { const hits = this.querySelectorAll(selector); return hits.length === 0 ? null : hits[0] }
 }
-const scopes = []
+const roots = []
 const head = new El('HEAD')
 const styles = new Map()
 globalThis.Node = { TEXT_NODE: 3, ELEMENT_NODE: 1 }
@@ -42,8 +52,8 @@ globalThis.document = {
   getElementById: (id) => styles.get(id) ?? null,
   createElement: (tag) => new El(tag.toUpperCase()),
   querySelectorAll(selector) {
-    if (selector !== 'button[data-turn-process] > span') return []
-    return scopes.map(scope => scope.children.find(c => c.tagName === 'BUTTON').children[0])
+    if (selector === '[data-chat-running]') return roots.filter(root => root.isConnected)
+    return []
   },
 }
 class MutationObserverStub {
@@ -105,30 +115,38 @@ check('apply() ran and registered effects', effects.length >= 3, true)
 check('theme sheet injected', styles.has('falling-ts-theme-tokens'), true)
 check('no swish sheet injected', styles.has('falling-ts-swish-inline'), false)
 
-// Mount one running turn, then drive the host's liveUi push.
-const scope = new El('DIV')
-const status = new El('SPAN')
-status.attrs.role = 'status'
-status.attrs['aria-live'] = 'polite'
-status.setText('深度求索中')
-const button = new El('BUTTON')
-button.attrs['data-turn-process'] = '4'
-const label = new El('SPAN')
-const labelText = label.setText('深度求索中，用时1分14秒')
-button.append(label)
-scope.append(status)
-scope.append(button)
-scopes.push(scope)
+// Mount one running turn exactly like harness 0.2.0's RunningStatus does.
+const root = new El('DIV'); root.setAttribute('data-chat-running', '')
+const status = new El('SPAN'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setText('深度求索中')
+const divider = new El('SPAN'); divider.setAttribute('aria-hidden', 'true')
+const content = new El('SPAN')
+const icon = new El('SPAN'); icon.setAttribute('aria-hidden', 'true')
+const whale = icon.append(new El('SPAN'))
+const shimmer = new El('SPAN'); shimmer.setAttribute('data-shimmer', 'true')
+const base = shimmer.append(new El('SPAN'))
+const label = base.append(new El('SPAN'))
+const labelText = label.setText('深度求索中，用时1分14秒 ···')
+const decoration = shimmer.append(new El('SPAN')); decoration.setAttribute('aria-hidden', 'true')
+const sweep = decoration.append(new El('SPAN'))
+const decoText = sweep.append(new El('SPAN')).append(new El('SPAN'))
+decoText.setAttribute('data-shimmer-text', '深度求索中，用时1分14秒 ···')
+content.append(icon); content.append(shimmer)
+root.append(status); root.append(divider); root.append(content)
+roots.push(root)
 
 snapshot = { status: 'ready', value: { liveUi: { phase: 'working', text: '正在翻阅《天机》', textId: 'working.13' } }, writable: true }
 onSnapshot()
-check('liveUi push rewrites the visible label', labelText.nodeValue, '正在翻阅《天机》，用时1分14秒')
+check('liveUi push rewrites the visible label', labelText.nodeValue, '正在翻阅《天机》，用时1分14秒 ···')
+check('liveUi push rewrites the shimmer copy', decoText.getAttribute('data-shimmer-text'), '正在翻阅《天机》，用时1分14秒 ···')
 check('announcement node untouched', status.textContent, '深度求索中')
+check('whale icon untouched', Object.keys(whale.attrs).length, 0)
+check('divider untouched', divider.childNodes.length, 0)
 
-// Clear (conversation end) restores the official text.
+// Clear (conversation end) restores the official text in both copies.
 snapshot = { status: 'ready', value: { liveUi: { phase: 'end', text: '', textId: 'end' } }, writable: true }
 onSnapshot()
-check('end clear restores the official label', labelText.nodeValue, '深度求索中，用时1分14秒')
+check('end clear restores the official label', labelText.nodeValue, '深度求索中，用时1分14秒 ···')
+check('end clear restores the shimmer copy', decoText.getAttribute('data-shimmer-text'), '深度求索中，用时1分14秒 ···')
 
 // Unloading the plugin disconnects the observer (the registered disposer runs).
 const observerEffect = effects.find(e => String(e.label).includes('turn-label observer'))

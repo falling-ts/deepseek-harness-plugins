@@ -176,33 +176,66 @@ tag `dsh-v0.2.0-rc.1` 对应的版本列车：`@deepseek-ai/cordis: ">=4.0.4"`�
   只对私有必需 entry 清单致命的 `auditStartupEntries`，本插件不在表内，因此必须自己
   `ctx.appExit(1)`（0.1.5 上抛错本身就致命，机制不同）。
 
-### 0.2.0 兼容性核对（2026-09-29，结论：三个插件源码零改动）
+### 0.2.0 兼容性核对（2026-09-30，基线 `dsh-v0.2.0-rc.2`）
 
-0.1.7-alpha.2 → dsh-v0.2.0-rc.1 逐缝核对结果，以下缝**全部原样保留**：
+**rc.1 → rc.2 复核结论：`dsh-web-ding` 与 `dsh-local-no-auth` 源码零改动；
+`dsh-force-compact` 有两处必须跟（见下），已随 0.7.1 修完。**
+peer 下界一律保持 `>=0.2.0-rc.1` **不动**：rc.1 → rc.2 是 0.2.0 列车内的补丁，纯下界本就
+承诺整条列车，收窄到 rc.2 只会让 0.2.0 的 boot 期 peer 预检（`app-boot`
+`plugin-compatibility.ts`，semver + `includePrerelease`）在 rc.1 运行时**静默禁用**插件。
+
+以下缝在 0.1.7 → 0.2.0-rc.1 时已核过，此次在 rc.2 上**复验为原样保留**：
 
 - Host：`ctx.connection` 的 `requestRejection` / `authorizeIndex` / `authenticatedUrl`；
   `ctx.webServer.host`（schema 仍只收 `'127.0.0.1' | '0.0.0.0'`）；`ctx.appExit`；
   `ctx.pluginPackages.metaOf`；`agent/status` / `agent/pre-step` / `agent/request`
-  签名未变；`session/flush` 仍是 awaited `Promise.allSettled` parallel checkpoint；
-  `compaction.compactNow(agent, signal, sourceCommandId?)` / `compactRegion(...)` 未变；
-  `settings.configure({ auto?: boolean }, owner: Fiber = ctx.fiber)` 未变。
-- Client：`ctx.configForms.get(ns)`、`ctx.slots.inject('settings.section')`（仍
-  `kind:'list'; scope:'root'`）、`ctx.locale.bind/register/addLanguage`、
-  `data-question-key`（`QuestionComposer.tsx:278`）、`chat.deepDiving(For)` locale 键、
-  `body[data-ds-dark-theme]` 与 `--dsw-alias-label-primary` / `label-secondary` /
-  `border-l*` / `interactive-bg-*`（design-platform.css 有增补但老键都在）。
-- `resolver.ts:699` 的 `error.stack = ...`（对 Node 内部 `ERR_PACKAGE_PATH_NOT_EXPORTED`
-  错误的非可写 `stack` 赋值）**在 0.2.0 仍在**，`dsh-local-no-auth` 的元信息崩溃 shim
-  因此继续必要。
+  签名与 dispatch mode 未变；`session/flush` 仍是 awaited `Promise.allSettled` parallel
+  checkpoint；`compaction.compactNow(agent, signal, sourceCommandId?)` / `compactRegion(...)`
+  未变；`settings.configure({ auto?: boolean }, owner: Fiber = ctx.fiber)` 未变；
+  `tokenMeter` 的 `heuristicTokens` 仍是折价字段（不是 `tokens`）；`llm.stream` +
+  `llm.resolveCallConfig` 未变。
+- Client：`ctx.configForms.get(ns)` + `ConfigForm` 五方法（`getSnapshot` / `subscribe` /
+  `set` / `unset` / `mutate`；状态枚举仍含 `'loading'`）、
+  `ctx.slots.inject('settings.section')`（仍 `kind:'list'; scope:'root'`）、
+  `ctx.locale.bind/register/addLanguage`、`createSnapshotStore`、
+  `data-question-key`（0.2.0 长在 `ui-user-questions/src/client/QuestionComposer.tsx` 的 frame
+  根节点上；0.1.7 时它在 `ui-chat` 里、行号已变，但**属性名这个锚点本身未变**）、
+  `chat.deepDiving(For)` locale 键、`body[data-ds-dark-theme]` 与
+  `--dsw-alias-label-primary` / `label-secondary` / `border-l*` / `interactive-bg-*`。
+- `resolver.ts` 的 `error.stack = ...`（对 Node 内部 `ERR_PACKAGE_PATH_NOT_EXPORTED`
+  错误的非可写 `stack` 赋值；rc.2 在 699 行）**仍在**，`dsh-local-no-auth` 的元信息崩溃
+  shim 因此继续必要。
 
-验证（全部退出码 0）：`node exploration/plugin-manifest-check.mjs`（严格 `JSON.parse` +
-peer 字面量断言基线）、`node exploration/peer-range-probe.mjs`（semver 范围 + 边界语义，
-70 项）、`node exploration/theme-token-probe.mjs`（31 项）、
-`node exploration/fc-plugin-load-probe.mjs`（mock ctx 模块图/注册冒烟）；
-另有无头浏览器探针 `exploration/web-020-headless-probe.mjs` /
-`web-020-settings-probe.mjs` / `web-020-plugin-sections-probe.mjs`
-（对运行中的 `dsh web` 断言：首页 200、0 console.error / 0 pageerror / 0 失败请求、
-插件 client bundle 200、两个插件设置分区完整渲染）。
+rc.2 上**确实变了**、且直接命中 `dsh-force-compact` 的两处（细节见该插件 AGENTS.md）：
+
+1. **运行态文案换了宿主**：`button[data-turn-process] > span` 现在只渲染**已结束**回合，
+   运行态搬进了新组件 `RunningStatus` 的 `div[data-chat-running]`（新锚点），且
+   `TextShimmer` 把同一句渲染两遍（真实文本节点 + `data-shimmer-text` 的高亮副本，后者由
+   CSS `::after` 取字）。0.1.7 的贴皮实现因此在 0.2.0 上**贴错对象**——会把已结束回合的
+   「已完成，用时 2分5秒」错贴成工作中的俏皮话。0.7.1 改为：只替换**文字**前缀，
+   **鲸鱼动画小图标（`runningIcon`）与分隔线原样保留**，并对两处文字**双写**。
+2. **`tool-result` 块类型被上游删除**（提交 `f4a32dbd0a` "flatten tool results"）：计价
+   移植块里为它保留的专用分支与官方 `estimateContent` 的 `default` 分支分叉 4 tokens，
+   导致少报 shadow 账单。0.7.1 已删掉该分支（探针加了 V4 原生形状与 legacy 未知块两例）。
+
+顺手纠正一条旧记载：**0.2.0 的 CLI 有 `--patch <path>` 选项**（可重复）。旧文档写的
+"`dsh web` 没有 `--patch` 选项"不成立——实测
+`pnpm dsh --profile web --patch <file> --dump-config` 退出码 0，且 dump 的层头里出现该
+文件路径。但它叠加的是**配置层**、不安装包：被叠加文件若按**包名**引用插件，该包仍须先
+装进 profile。
+
+验证（全部退出码 0，2026-09-30）：`node exploration/plugin-manifest-check.mjs`（严格
+`JSON.parse` + peer 字面量）、`peer-range-probe.mjs`（123 项：范围 / 同列车 / 边界语义）、
+`theme-token-probe.mjs`（31）、`i18n-parity-probe.mjs`（51）、`fc-bracket-order-probe.mjs`（8）、
+`fc-plugin-load-probe.mjs`、`fc-summary-effort-probe.mjs`（19）、
+`fc-shadow-price-parity-probe.mjs`（38）、`fc-livetext-prefix-probe.mjs`（24）、
+`fc-livetext-apply-probe.mjs`（12）、`fc-release-artifact-check.mjs dsh-force-compact`。
+端到端（3180 dev 实例，`DSH_HOME=~/.dsh-web`）：三个插件在 `pluginInventory/list` 里均为
+`enabled:true` / `fiberPhase:active`，`settings/describe` 出现 `falling-ts-force-compact` 与
+`falling-ts-web-ding` 两个命名空间，`dsh-local-no-auth` 免 token 生效（`/` 与 `/api/*` 均 200）；
+`fc-livetext-e2e-probe.mjs 3180`（17 项：对运行中实例经真实 host RPC 推 `liveUi`，走完
+broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle 清空；截图
+`exploration/fc-livetext-e2e{,-before}.png`）。
 
 ### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
 

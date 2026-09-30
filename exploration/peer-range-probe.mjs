@@ -7,15 +7,29 @@
 // harness vendors (pnpm store), against the versions declared by the upstream
 // packages in deepseek-harness/, and reports both directions.
 //
-// Baseline (2026-09-29, was 2026-09-23): the plugins target the dsh-v0.2.0-rc.1
-// train (0.1.7-alpha.2 → 0.2.0-rc.1, 763 commits). 0.2.0 adds a boot-time peer
-// compatibility preflight (app-boot `plugin-compatibility.ts`) that DISABLES a
-// profile row whose `@deepseek-ai/dsh*` peers are not satisfied by the running
-// runtime (semver, includePrerelease), unless an exact-version exemption is
-// granted via `dsh plugin allow-version` -- so a wrong floor is no longer just
-// "un-installable", it silently disables the plugin. The floor stays the pure
-// lower bound of the train we ship against; cordis is still the vendor pin
-// (4.0.4), schemastery the vendor pin (3.18.4).
+// Baseline (2026-09-30, was 2026-09-29): the plugins target the dsh **0.2.0 release
+// train**; the declared floor is its first prerelease, `0.2.0-rc.1`, and the
+// checkout is now pinned at `dsh-v0.2.0-rc.2` (0.1.7-alpha.2 → 0.2.0-rc.1, 763
+// commits). 0.2.0 adds a boot-time peer compatibility preflight (app-boot
+// `plugin-compatibility.ts`) that DISABLES a profile row whose `@deepseek-ai/dsh*`
+// peers are not satisfied by the running runtime (semver, includePrerelease),
+// unless an exact-version exemption is granted via `dsh plugin allow-version` --
+// so a wrong floor is no longer just "un-installable", it silently disables the
+// plugin.
+//
+// A PURE LOWER BOUND IS A PROMISE ABOUT A WHOLE TRAIN, NOT ABOUT ONE PRERELEASE.
+// rc.1 -> rc.2 is a patch inside one train (the running-status anchor this plugin
+// patches, `[data-chat-running]`, exists in both), so the floor deliberately does
+// NOT chase the pinned prerelease: raising it to rc.2 would make the preflight
+// disable the plugins on an rc.1 runtime for no reason. What this probe therefore
+// enforces is (a) every dsh peer names exactly the declared train floor, (b) the
+// declared floor is the SAME release train as the checkout (so a move to 0.2.1 /
+// 0.3.0 fails here and forces a re-decision), and (c) the shipped version -- and
+// every certifiably-compatible successor -- satisfies the range under the
+// includePrerelease semantics the preflight actually uses.
+//
+// cordis / schemastery are NOT on the dsh train: they are the vendor pins, and
+// their floors must equal the vendored version exactly.
 //
 // It also parses every package.json with Node's JSON.parse rather than a lenient
 // reader: this workspace was once bitten by a shell round-trip that replaced an
@@ -27,6 +41,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
+
+/** The dsh release train the plugins ship against (first prerelease of the train). */
+const DECLARED_FLOOR = '0.2.0-rc.1'
+
+/** Vendor pins: their floors equal the vendored version, so they track the checkout. */
+const VENDOR_PINS = {
+  '@deepseek-ai/cordis': '4.0.4',
+  '@deepseek-ai/schemastery': '3.18.4',
+}
+
+/** The floor one peer name must declare, per the collection convention. */
+const expectedFloor = (name) => VENDOR_PINS[name] ?? DECLARED_FLOOR
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'))
@@ -99,6 +125,24 @@ for (const name of [...peerNames].sort()) {
 const PLUGINS = ['dsh-force-compact', 'dsh-web-ding', 'dsh-local-no-auth']
 const harnessVersion = upstreamVersion['@deepseek-ai/dsh-settings']
 
+/** `major.minor.patch` of a version -- the release train it belongs to. */
+const trainOf = (version) => {
+  const parsed = semver.parse(version)
+  if (parsed === null) throw new Error(`not a semver version: ${version}`)
+  return `${parsed.major}.${parsed.minor}.${parsed.patch}`
+}
+/** Whether two versions ride the same release train. */
+const sameTrain = (left, right) => trainOf(left) === trainOf(right)
+
+// A pure lower bound promises the whole train, so the checkout may advance within
+// the train without changing it -- but moving to another train means the promise
+// was never checked against that surface and the baseline must be re-decided.
+check(sameTrain(DECLARED_FLOOR, harnessVersion),
+  `declared floor ${DECLARED_FLOOR} rides the same train as the shipped ${harnessVersion}`,
+  `floor train ${trainOf(DECLARED_FLOOR)} vs shipped train ${trainOf(harnessVersion)}`)
+check(semver.gte(harnessVersion, DECLARED_FLOOR),
+  `the shipped ${harnessVersion} is at or above the declared floor ${DECLARED_FLOOR}`)
+
 for (const plugin of PLUGINS) {
   console.log(`\n=== ${plugin} ===`)
   const pkg = readJson(`${plugin}/package.json`)   // strict parse = the em-dash gate
@@ -119,12 +163,19 @@ for (const plugin of PLUGINS) {
     }
     check(semver.satisfies(actual, range),
       `${name} ${range} [${optional ? 'optional' : 'required'}] admits the shipped ${actual}`)
+    // The preflight that can disable a profile row uses includePrerelease, so the
+    // range must admit the shipped prerelease under THOSE semantics too.
+    check(semver.satisfies(actual, range, { includePrerelease: true }),
+      `${name} ${range} admits the shipped ${actual} under the boot preflight (includePrerelease)`)
 
-    // Every peer floor names the exact version this checkout ships: a pure lower
-    // bound of that package's own release train (cordis included, from vendor/).
-    check(range.trim() === `>=${actual}`,
-      `${name} range is exactly >=${actual}`,
+    // Every peer floor names the declared train floor (or the vendor pin) -- a
+    // pure lower bound of the train, not of whichever prerelease is pinned today.
+    check(range.trim() === `>=${expectedFloor(name)}`,
+      `${name} range is exactly >=${expectedFloor(name)}`,
       `got ${range}`)
+    check(expectedFloor(name) === VENDOR_PINS[name] || sameTrain(expectedFloor(name), actual),
+      `${name} floor ${expectedFloor(name)} is the same release train as the shipped ${actual}`,
+      `floor train ${trainOf(expectedFloor(name))} vs shipped train ${trainOf(actual)}`)
   }
 
   // npm refuses to publish a package whose own version is below a peer floor it names.
@@ -133,10 +184,12 @@ for (const plugin of PLUGINS) {
 
 // ── the boundary semantics the range relies on ───────────────────────────────
 console.log('\n=== range boundary semantics ===')
-const FLOOR = `>=${harnessVersion}`
-check(semver.satisfies(harnessVersion, FLOOR), `${harnessVersion} satisfies ${FLOOR} (we are installable here)`)
+const FLOOR = `>=${DECLARED_FLOOR}`
+check(semver.satisfies(DECLARED_FLOOR, FLOOR), `${DECLARED_FLOOR} satisfies ${FLOOR} (the floor admits itself)`)
 check(semver.satisfies(harnessVersion, FLOOR, { includePrerelease: true }),
-  `${harnessVersion} satisfies ${FLOOR} with includePrerelease (what the 0.2.0 preflight uses)`)
+  `the shipped ${harnessVersion} satisfies ${FLOOR} with includePrerelease (what the 0.2.0 preflight uses)`)
+check(semver.satisfies('0.2.0-rc.2', FLOOR, { includePrerelease: true }),
+  `0.2.0-rc.2 (a later prerelease of the train) is admitted by ${FLOOR}`)
 check(!semver.satisfies('0.1.6-alpha.2', FLOOR, { includePrerelease: true }),
   `0.1.6-alpha.2 is excluded by ${FLOOR}`)
 check(!semver.satisfies('0.1.7-alpha.2', FLOOR, { includePrerelease: true }),
