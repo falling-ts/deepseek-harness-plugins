@@ -19,11 +19,13 @@
  *      卡住)。这一支证明门 5 不是"永久静音":A 自己那一条仍然执行了。
  *
  * 用法:
- *   node exploration/sc-live-verify.mjs [port] [--clean-wait=秒] [--toast]
+ *   node exploration/sc-live-verify.mjs [port] [--clean-wait=秒] [--demo]
  *
- *   --toast   额外验一次**工作区根的真实 demo 命令** `node <repo>/test-start.js`
- *             (Win11 右下角通知 + 时间戳标记文件),断言它写的
- *             `%TEMP%/dsh-start-command-last-run.txt` 被刷新。默认关闭:该文件属于
+ *   --demo(旧名 `--toast` 仍接受)  额外验一次**工作区根的真实 demo 命令**
+ *             `node <repo>/test-start.js`,断言它写的
+ *             `%TEMP%/dsh-start-command-last-run.txt` 被刷新、且标记里的 `text=`
+ *             正是本探针这次写进命令的那一个。该段一律加 `--no-launch` 跑:只写文档与
+ *             标记、不开记事本窗口——自动化里弹窗口只会抢焦点。默认关闭:那个文件属于
  *             工作区容器仓库、不属于插件仓库,不该成为插件的门禁依赖。
  *
  * 只读宿主记录 + 写一个临时目录;唯一写宿主的动作是设置项的写入与 finally 里的**还原**。
@@ -39,13 +41,13 @@ const BASE = `http://127.0.0.1:${PORT}/api`
 const NS = 'falling-ts-start-command'
 const FIELD = 'startCommand'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const TOAST_SCRIPT = join(ROOT, 'test-start.js')
-const TOAST_MARKER = join(homedir(), 'AppData', 'Local', 'Temp', 'dsh-start-command-last-run.txt')
+const DEMO_SCRIPT = join(ROOT, 'test-start.js')
+const DEMO_MARKER = join(homedir(), 'AppData', 'Local', 'Temp', 'dsh-start-command-last-run.txt')
 const argNum = (name, fallback) => {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`))
   return hit ? Number(hit.slice(name.length + 3)) * 1000 : fallback
 }
-const WANT_TOAST = process.argv.includes('--toast')
+const WANT_DEMO = process.argv.includes('--demo') || process.argv.includes('--toast')
 const CLEAN_WAIT_MS = argNum('clean-wait', 180_000)
 const RUN_WAIT_MS = argNum('run-wait', 40_000)
 
@@ -189,23 +191,26 @@ try {
   }
 
   // ── C. 真实 demo 命令(可选)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (WANT_TOAST) {
-    console.log('\n[C] 真实 demo:node test-start.js(Win11 通知 + 时间戳标记)')
-    if (!existsSync(TOAST_SCRIPT)) {
-      check(false, `存在 ${TOAST_SCRIPT}`)
+  if (WANT_DEMO) {
+    console.log('\n[C] 真实 demo:node test-start.js(记事本模式 / headless + 时间戳标记)')
+    if (!existsSync(DEMO_SCRIPT)) {
+      check(false, `存在 ${DEMO_SCRIPT}`)
     } else {
-      await writeSetting(`node ${TOAST_SCRIPT}`)
+      await writeSetting(`node ${DEMO_SCRIPT} --text=sc-live-verify --no-launch`)
       const cleanC = await waitCleanWindow()
       if (!cleanC.ok) {
         inconclusive = true
         exitCode = 2
         info(`拿不到干净窗口(${cleanC.blockers.join(', ')}),跳过 C`)
       } else {
-        const before = mtimeOf(TOAST_MARKER)
+        const before = mtimeOf(DEMO_MARKER)
         await prompt(READY)
-        const hit = await waitFor(async () => mtimeOf(TOAST_MARKER) > before, RUN_WAIT_MS)
-        check(Boolean(hit), 'test-start.js 被真实回合执行(通知此刻应已弹出)')
-        if (hit) info(`标记内容: ${readMarker(TOAST_MARKER).trim().split('\n').slice(0, 3).join(' | ')}`)
+        const hit = await waitFor(async () => mtimeOf(DEMO_MARKER) > before, RUN_WAIT_MS)
+        check(Boolean(hit), 'test-start.js 被真实回合执行(标记文件已刷新)')
+        const marked = readMarker(DEMO_MARKER)
+        check(marked.includes('text=sc-live-verify'), '标记里的 text= 就是本探针写进命令的那一个',
+          `实际: ${marked.trim().split('\n').slice(0, 4).join(' | ')}`)
+        if (hit) info(`标记内容: ${marked.trim().split('\n').slice(0, 3).join(' | ')}`)
       }
     }
   }

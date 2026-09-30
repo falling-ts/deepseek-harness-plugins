@@ -284,7 +284,20 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 模型在第一个步骤读到产物；清空后不再执行）、
 `exploration/sc-settings-ui-probe.mjs 3080`（7 项，真浏览器：分区渲染 + 读路径 + 经「保存」的写路径）、
 `exploration/sc-live-verify.mjs 3080`（门 5 活体正反两支：**先等到空窗再发话**才执行 / 会话 A 在跑时
-投递的会话 B 被压制但回合照常跑完；`--toast` 追加真实 `test-start.js` 一段）。
+投递的会话 B 被压制但回合照常跑完；`--demo`（旧名 `--toast` 仍接受）追加真实 `test-start.js` 一段，
+该段 headless 跑（`--text=sc-live-verify --no-launch`），并断言标记里的 `text=` 与本次写入一致）。
+
+> 工作区根的 `test-start.js` 是这条链路的**可视 demo**：默认动作 = **打开系统记事本并写入
+> `Harness 开始了。`**（`--text=` / `--file=` / `--new` / `--no-launch` 可调；`--notify` /
+> `--toast` / `--card` 回到右下角通知）。正文由 Node 以 UTF-8 直写 `%TEMP%\harness-started.txt`，
+> PowerShell 只拿一条纯 ASCII 路径去开记事本（中文不经过命令行/代码页）；已有一个开着同一份
+> 文档的窗口时**只聚焦不叠窗口**。判据读 `%TEMP%\dsh-start-command-last-run.txt`（`mode=` /
+> `text=` / `docWritten=` / `launched=`）与 stdout 的 `kind=notepad reused=… found=… focused=…`。
+> 实测（2026-09-30）：宿主是**提权后台进程**，普通的 `SetForegroundWindow` 会被前台锁挡掉，
+> 得 `AttachThreadInput` → 松一次 Alt 键 → `SwitchToThisWindow` 三级连锁才拿得到 `focused=True`。
+> 另注：`dsh web` / 桌面应用里插件的 `ctx.logger` 输出**都不落盘**（两个 profile 都没挂 console
+> exporter），`dsh-web-3080.log` 只收直接 `console.log` 的行——要留证据就让命令自己写日志
+> （`… --wait *>&1 | Out-File -LiteralPath <file> -Encoding ascii`）。
 
 > ⚠️ **测 `dsh-start-command` 时，探针发起者自己往往就是那个"在跑的 agent"**（2026-09-30 实测：
 > 本会话就跑在 3080 上，`session/list` 里一直 `running:true`）。在自己的回合里连发真实回合，
