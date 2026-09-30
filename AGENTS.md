@@ -85,9 +85,12 @@
 |------|------|------|
 | `deepseek-harness/` | 子模块（上游 monorepo：`apps/cli`、`apps/web`、`packages/*`、`examples/*`，pnpm workspace） | `git@github.com:deepseek-ai/deepseek-harness.git`（branch `master`） |
 | `dsh-force-compact/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-force-compact`，plain JS 无构建步骤） | `git@github.com:falling-ts/dsh-force-compact.git`（branch `main`） |
-| `docs/` | 工作区级技术文档（后端接口目录、上下文管理/会话结构分析、llama.cpp 适配方案等） | — |
+| `dsh-local-no-auth/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-local-no-auth`，纯 Host、无客户端半部） | `git@github.com:falling-ts/dsh-local-no-auth.git`（branch `main`） |
+| `dsh-web-ding/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-web-ding`，Host + 浏览器 client 两半） | `git@github.com:falling-ts/dsh-web-ding.git`（branch `main`） |
+| `awesome-dsh-plugin/` | 子模块（社区目录 fork：`data/plugins/*.yml` + 重新生成的双语 README） | `git@github.com:falling-ts/awesome-dsh-plugin.git`（fork，branch `main`） |
+| `docs/` | 工作区级技术文档（后端接口目录、上下文管理/会话结构分析、llama.cpp 适配方案、**插件规范符合性评审**等） | — |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
-| `.idea/`、`*.log` | 已忽略（IDE 配置；`harness-server.sh` 运行日志） | — |
+| `.idea/`、`.workbuddy/`、`.dsh-home/`、`*.log` | 已忽略（IDE 配置；会话本地笔记；工作区根残留的 DSH_HOME；`harness-server.sh` 运行日志） | — |
 
 ## 子模块（指针）约定
 
@@ -241,6 +244,33 @@ rc.2 上**确实变了**、且直接命中 `dsh-force-compact` 的两处（细�
 broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle 清空；截图
 `exploration/fc-livetext-e2e{,-before}.png`）。
 
+### 官方插件规范符合性评审（2026-09-30）
+
+按上游 `docs/user/develop/**` + `cordis-plugin-development` skill（`references/host-plugin.md` /
+`ui-plugin.md` / `practices.md`）+ `packages/AGENTS.md` / `packages/client/AGENTS.md` 逐条核对过
+三个插件。**完整结论、整改清单与风险登记见
+[docs/plugin-conformance-review.zh.md](docs/plugin-conformance-review.zh.md)**；三条必须记住的：
+
+- **显示元数据**：标题/描述要放 `locale/<lang>.json` 的 `meta`，图标是清单顶层 `icon`（相对路径、
+  SVG/PNG/JPEG/WebP、≤256 KiB），两者都要经 `exports` 发布；缺了会**静默**回退到 package.json 的
+  `name`/`description`（也就是那段超长 npm 描述，force-compact 约 1.2 KB）。**清单改动要重启实例
+  才生效**（profile-resolution 启动时快照插件 exports 表），这与"改插件源码不用重启"是两条规则。
+- **客户端半部红线**：工厂必须无副作用（监听器/样式/订阅一律在 `apply` 里经 `ctx.effect` 注册并
+  归还 disposer）；**不写自己组件之外的 DOM、不 append 到 `body`**（浮层的官方出口是 `shell.overlay`
+  槽）；不读写宿主 DOM 做定位；rpcId 的铸造归 Connection（客户端不要手拼 wire 信封）；
+  `@deepseek-ai/dsh-client-store` 是 `PLATFORM_MODULES` 基线模块，**不需要**写 `dsh.client.external`
+  （重复基线反而会被 `verify-client-packages` 判违规）。
+- **有意保留的偏离（勿"顺手修"）**：web-ding 的 toast/抽屉仍是 body 直写浮层；两个插件仍读宿主
+  DOM 锚点（`data-question-key` / `data-chat-running`）；回合结束仍以 `agent/status` 的 idle 转变为
+  判据（是监听事件、非轮询）；peer 只声明 `peerDependencies`；`--fcts-*` 浅色分支保留字面值。
+  逐条理由与风险登记在那份文档里。
+
+门禁已同步扩强：`exploration/plugin-manifest-check.mjs` 现在同时校验 locale 键集、文案长度上限、
+`icon` 存在与体积、`exports`/`files` 覆盖（做过反向验证：移走 `locale/zh.json` 即红）；新增
+`exploration/wd-signal-title-probe.mjs`（27 项：Host 侧标题读取与信号契约的 7 种降级）；
+`exploration/wd-audio-unlock-apply-probe.mjs` 扩到 31 项（工厂纯净、apply 所有权与撤销、零 RPC、
+首帧两种情形）。
+
 ### 主题（浅色 / 暗色）与颜色 token（2026-09-17 增补）
 
 插件是 plain JS、组件用内联 style，**不能**像官方客户端包那样写 CSS Module；但**内联 style 里的
@@ -274,6 +304,19 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
   改源码即生效）。幂等、约 600ms。**这一步不能省**——web home 独立于桌面应用，没有它新
   home 起出来的是空 profile（免鉴权插件不在 → 浏览器报 authentication required）。脚本同时把
   `[web] DSH_HOME / port / plugin src / log` 四行打到 stdout，供事后核对加载的是哪份源。
+- ⚠️ **从 agent 的工具 shell 里调这个脚本，必须先把继承来的 `DSH_HOME` 摘掉**
+  （2026-09-30 实测踩过）：本会话的 shell 由桌面应用派生，环境里带着 `DSH_HOME=C:\Users\<u>\.dsh`，
+  脚本的 `${DSH_HOME:-…}` 会**照单全收**，于是它在**桌面应用的家**里建出
+  `~/.dsh/profiles/web` 并按那个 home 起实例——正是下文反复警告的"两个 home 串台"。
+  正确姿势：`bash -lc 'unset DSH_HOME; ./harness-server.sh'`（或用 `DSH_HOME='C:/…/…'` 显式指定，
+  注意 Git Bash 里给 Node 用**正斜杠** Windows 路径，别给 `/c/...`）。脚本打印的第一行
+  `[web] DSH_HOME = …` 就是这件事的唯一判据，**先看它再往下走**。
+- ⚠️ **脚本第 2 步的 `taskkill` 可能被拒**，而第 4 步的端口探测会把**旧进程**当成"启动成功"
+  （实测：旧实例仍在监听、新进程绑定失败自行退出，脚本却打了 `OK: port 3080 is up`）。
+  在受限 shell 里（工具子进程停下不掉的进程）尤其容易这样。判据是**日志尾部有没有
+  `[ELIFECYCLE] Command failed with exit code 1`** 与 `netstat` 里 LISTENING 的 PID 是否变过。
+  另一个干净做法：换个端口 + 换一个 home 起**隔离验证实例**
+  （`PORT=3099 DSH_HOME='D:/…/.dsh-verify'`），它与 3080 互不抢会话租约，验证完随手删。
 - 日志写入**脚本调用时的当前目录**：`dsh-web-<PORT>.log`（故根目录忽略 `*.log`）。
 - 脚本第 2 步会杀掉端口占用进程：若当前 harness 自身占用该端口，
   运行脚本会导致承载本 GUI 的 harness 重启。
