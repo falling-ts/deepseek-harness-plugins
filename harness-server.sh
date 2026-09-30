@@ -36,6 +36,11 @@ WAIT_SECS="${WAIT:-10}"
 
 # DSH_HOME defaults to ~/.dsh-web, a home OWNED BY THE WEB SERVER.
 #
+# Three homes, one per host:
+#   ~/.dsh        the desktop app's own home (its built-in default)
+#   ~/.dsh-web    this script's web server (default port 3080)
+#   ~/.dsh-dev    harness-server-dev.sh's dev instance (default port 3180)
+#
 # Why not ~/.dsh (2026-09-30): the installed desktop app keeps using ~/.dsh. A
 # session directory is guarded by a cross-process write lease (single writer,
 # enforced by the kernel — see packages/session/session-persistence-jsonl/
@@ -43,7 +48,14 @@ WAIT_SECS="${WAIT:-10}"
 # with `session/writer-held`, which the client renders as "当前会话已被占用…".
 # A dsh web instance takes that lease on every session it restores, including
 # the session the desktop currently has open — this web server therefore gets
-# its own home and cannot touch the desktop's sessions.
+# its own home and cannot touch the desktop's sessions. The dev script splits
+# again for the same reason: 3080 and 3180 must not fight over one store.
+#
+# CAVEAT: an explicit DSH_HOME in the environment WINS over this default (the
+# `:-` below), so a machine-wide DSH_HOME (e.g. a User-scope variable pointing at
+# ~/.dsh) silently defeats this isolation — that is exactly how a web instance
+# once came up reading the desktop app's session list and account. Check with
+# `[Environment]::GetEnvironmentVariable('DSH_HOME','User')` in PowerShell.
 #
 # Override to re-share the desktop home: DSH_HOME=~/.dsh bash harness-server.sh
 #
