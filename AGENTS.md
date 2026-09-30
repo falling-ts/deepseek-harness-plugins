@@ -287,17 +287,49 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 投递的会话 B 被压制但回合照常跑完；`--demo`（旧名 `--toast` 仍接受）追加真实 `test-start.js` 一段，
 该段 headless 跑（`--text=sc-live-verify --no-launch`），并断言标记里的 `text=` 与本次写入一致）。
 
-> 工作区根的 `test-start.js` 是这条链路的**可视 demo**：默认动作 = **打开系统记事本并写入
-> `Harness 开始了。`**（`--text=` / `--file=` / `--new` / `--no-launch` 可调；`--notify` /
-> `--toast` / `--card` 回到右下角通知）。正文由 Node 以 UTF-8 直写 `%TEMP%\harness-started.txt`，
-> PowerShell 只拿一条纯 ASCII 路径去开记事本（中文不经过命令行/代码页）；已有一个开着同一份
-> 文档的窗口时**只聚焦不叠窗口**。判据读 `%TEMP%\dsh-start-command-last-run.txt`（`mode=` /
-> `text=` / `docWritten=` / `launched=`）与 stdout 的 `kind=notepad reused=… found=… focused=…`。
-> 实测（2026-09-30）：宿主是**提权后台进程**，普通的 `SetForegroundWindow` 会被前台锁挡掉，
-> 得 `AttachThreadInput` → 松一次 Alt 键 → `SwitchToThisWindow` 三级连锁才拿得到 `focused=True`。
+> 工作区根的 `test-start.js` 是这条链路的**可视 demo**：默认动作 = **在屏幕右下角新弹一个自绘
+> 窗口**（`popup` 模式），窗口上写着 `Harness 开始了。` + `第 N 次执行 · 时刻` + 会话工作目录。
+> **每次执行都新开一个窗口**（叠着往上排，槽位 = 编号 % 6），不合并、不替换、不受系统通知策略
+> 影响，默认 9 秒后淡出、点一下立即关；开关：`--sticky`（不自动关）/ `--duration=ms` / `--silent`
+> / `--focus`（默认只置顶不抢焦点）/ `--text=` / `--no-launch`（只写标记，自动化用）。
+> `--notepad`（记事本，已不是默认）/ `--notify` / `--toast` / `--card` 保留旧行为。
+> 判据：窗口第二行的 `第 N 次` 来自 `%TEMP%\harness-popup-count.txt`（可无限自增），
+> 标记 `%TEMP%\dsh-start-command-last-run.txt` 记 `mode=` / `text=` / `popupCount=` / `dwellMs=` …
+> 枚举窗口用 `node exploration/win-window-probe.mjs [标题子串] [--all]`（`EnumWindows` + 可见性 +
+> 矩形 + `WS_EX_TOPMOST`），比截图判读硬、也比日志直接。
+>
+> ⚠️ **为什么默认不再是记事本**：记事本走"同一份文档只保留一个窗口"的复用语义，手动连跑第二遍时
+> 屏幕上**什么都不会发生**（只是把已有窗口拉到前台；若它本来就在前台则完全看不出区别）——这正是
+> "我明明执行了却没有弹窗"的经典现场。要"每次执行都确定看得见"，就必须每次新建窗口。
+>
+> ⚠️ **动作进程必须能活过宿主那条命令**（2026-09-30 实测，经真实插件路径跑真回合、四种起法各写
+> 一个"12 秒后我还活着"的文件）：`spawn(…, { detached: true })` 在本机是**假成功**——
+> detached 那个连启动都没启动（`started=False`），普通子进程也活不过 12 秒；**真正活下来的是
+> `Start-Process` 的孙进程与 WMI `Win32_Process.Create` 建的进程**。所以 `test-start.js` 的派发
+> 顺序是 ① `Start-Process`（`-WindowStyle Hidden`，不影响 WinForms 窗口显示）→ ② WMI →
+> ③ 直接 spawn，每一档都以"动作进程有没有刷新 `%TEMP%\dsh-start-command-child.txt`"为准，
+> stdout 打 `dispatched via=start-process confirmed=Y`——`confirmed` 是实测结论，不是"我以为我发出去了"。
+> 宿主是**提权后台进程**时，抢焦点还得 `AttachThreadInput` → 松一次 Alt 键 → `SwitchToThisWindow`
+> 三级连锁（`--focus` 才用；"看得见"本身靠 `TopMost`，不依赖抢焦点成功）。
+>
+> ⚠️ **两个 home 现在都装了这条链路**：`~/.dsh-web/profiles/web`（3080）与
+> `~/.dsh/profiles/desktop`（桌面应用 19387，也就是用户实际打字的那个 GUI——2026-09-30 之前
+> **只有 web 那个 home 装了**，所以"在 GUI 里发消息却什么都不弹"的第一原因就是插件根本不在）。
+> 桌面 home 的 `dsh plugin --profile desktop add <path>` 会以
+> `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` 收场（pnpm 想重建那棵 `node_modules` 却没 TTY），
+> 手装四件套即可（`profile.json` 的 `dependencies` + `dsh.profile.bundles`、`node_modules/@falling-ts/<包>`
+> 目录联接、`pnpm-lock.yaml` 里 `link:` 那条、`cordis.patch.yml` 的条目），改完 profile HMR 会热加载。
+>
+> ⚠️ **装到一半的插件无法用"当回合"验证**：门 1 是 `payload.step === 1`（每回合只在**第一个模型
+> 步骤**执行），插件若在本回合中途才装上，这一回合永远不会再触发——**新回合**（用户下一条消息）
+> 才是判据。
+>
 > 另注：`dsh web` / 桌面应用里插件的 `ctx.logger` 输出**都不落盘**（两个 profile 都没挂 console
-> exporter），`dsh-web-3080.log` 只收直接 `console.log` 的行——要留证据就让命令自己写日志
-> （`… --wait *>&1 | Out-File -LiteralPath <file> -Encoding ascii`）。
+> exporter），`dsh-web-3080.log` 只收直接 `console.log` 的行。`~/.dsh/logs/dsh-force-compact.log`
+> **不能**当"别的插件有没有加载"的证据：它自己的 exporter 在出口处按 `[force-compact]` 标记过滤
+> （`src/core/log.js` 的 `shouldInclude`）。要留证据就让命令自己写日志
+> （`… --wait *>&1 | Out-File -LiteralPath <file> -Encoding ascii`；别用 `>` / `>>`，pwsh 会写成
+> UTF-16LE+BOM，宿主 `read` 判其为 binary 而拒读）。
 
 > ⚠️ **测 `dsh-start-command` 时，探针发起者自己往往就是那个"在跑的 agent"**（2026-09-30 实测：
 > 本会话就跑在 3080 上，`session/list` 里一直 `running:true`）。在自己的回合里连发真实回合，
