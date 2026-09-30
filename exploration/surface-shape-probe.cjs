@@ -3,7 +3,7 @@
 // as seen from the wire (session.history), to settle why the equality cross-check
 // trips even when lengths agree. Run: node surface-shape-probe.cjs <port> <sessionId>
 const http = require('http');
-const PORT = parseInt(process.argv[2] || '3180', 10);
+const PORT = parseInt(process.argv[2] || '3080', 10);
 const SID = process.argv[3];
 if (!SID) { console.error('usage: node surface-shape-probe.cjs <port> <sessionId>'); process.exit(2); }
 

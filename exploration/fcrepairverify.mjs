@@ -1,8 +1,8 @@
-// Cycle-4 verification driver: smoke the repaired 3180 instance, create a
+// Cycle-4 verification driver: smoke the repaired 3080 instance, create a
 // session, drive it across the 60000-token threshold, then classify the
 // resulting compaction transactions (complete vs. empty-abort vs. error) and
 // scan the plugin log for the repair's new signatures.
-const BASE = 'http://127.0.0.1:3180'
+const BASE = 'http://127.0.0.1:3080'
 const LOG_FILE = process.argv[2] || 'C:/Users/zghyu/.dsh/logs/dsh-force-compact.log'
 
 async function rpc(method, payload) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Dump the RAW session.list response shape (truncated) so the real field names
 // become obvious.
-const port = process.argv[2] || '3180'
+const port = process.argv[2] || '3080'
 const base = `http://127.0.0.1:${port}`
 ;(async () => {
   const res = await fetch(`${base}/api/session.list`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId: 'raw-list', method: 'session.list', payload: {} }) })

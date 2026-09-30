@@ -3,7 +3,7 @@
 对象：`D:\deepseek-harness-plugins\deepseek-harness`
 - HEAD = `00102833dfaee1da9f48a3a8eae9d34005a75218`，tag `dsh-v0.1.7-alpha.2`
 - 与 `origin/master` 差分 `0 0`（即正好在上游 master 尖端），子模块工作树干净
-- 承载本 GUI 的 3080 与开发端口 3180 都由**这棵树**直接启动（`node --import tsx/esm apps/cli/src/bin.ts web`），所以下面的结论就是在跑的那份 node_modules
+- web 实例的 3080 由**这棵树**直接启动（`node --import tsx/esm apps/cli/src/bin.ts web`），所以下面的结论就是在跑的那份 node_modules
 
 ## 结论速览
 

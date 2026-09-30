@@ -1,9 +1,9 @@
-// fc-live-settings-3180.cjs — prove force-compact reads settings LIVE (no cache):
+// fc-live-settings-3080.cjs — prove force-compact reads settings LIVE (no cache):
 //  1) flip autoThresholdTokens to 40000 -> the periodic flush checkpoint log
 //     must show "(threshold 40000)" within seconds;
 //  2) flip debug to false -> the plugin log file must stop growing;
 //  3) restore both (128000 / true) -> log grows again.
-const BASE = 'http://127.0.0.1:3180/api'
+const BASE = 'http://127.0.0.1:3080/api'
 const LOG = process.env.USERPROFILE + '/.dsh/logs/dsh-force-compact.log'
 const fs = require('fs')
 

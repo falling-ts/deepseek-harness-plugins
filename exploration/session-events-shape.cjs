@@ -4,7 +4,7 @@
 // We drive this through the wire: fetch full history, then compare node-order vs seq-order.
 // Run: node session-events-shape.cjs <port> <sessionId>
 const http = require('http');
-const PORT = parseInt(process.argv[2] || '3180', 10);
+const PORT = parseInt(process.argv[2] || '3080', 10);
 const SID = process.argv[3];
 if (!SID) { console.error('usage: node session-events-shape.cjs <port> <sessionId>'); process.exit(2); }
 function rpc(method, payload) {

@@ -1,10 +1,10 @@
-// fc-stuck-done-3180.cjs — NEGATIVE case: a DONE banner (phase 'done') must NOT be
+// fc-stuck-done-3080.cjs — NEGATIVE case: a DONE banner (phase 'done') must NOT be
 // overridden by clearStuckCompressingBanner (it only clears phase==='compressing').
 // Push a real DONE banner, fire a model request, and confirm the badge is NOT
 // force-cleared to a working pair by the pre-step hook. (The non-important llm/stream
 // watermark also can't override a `[` bracket, so the DONE banner survives either way —
 // the point is the hook does NOT add an important working-pair push for a DONE badge.)
-const BASE = 'http://127.0.0.1:3180/api'
+const BASE = 'http://127.0.0.1:3080/api'
 const NS = 'falling-ts-force-compact'
 
 async function call(method, args) {

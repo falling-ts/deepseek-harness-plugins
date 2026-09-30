@@ -18,8 +18,8 @@
 - **不支持 `??`** 空合并运算符；`$host` 是保留变量，勿占用。
 - **`Invoke-WebRequest` 在 `NonInteractive` 下需要 `-UseBasicParsing`**（本机实测，
   否则报 "Read and Prompt functionality is not available"）；`Invoke-RestMethod` 取
-  HTML/JS 文本可用。取 3180 的 client bundle 做端到端核对：
-  `Invoke-RestMethod "http://127.0.0.1:3180/plugins/??<包名>/client.js&rev=<哈希>"`
+  HTML/JS 文本可用。取 3080 的 client bundle 做端到端核对：
+  `Invoke-RestMethod "http://127.0.0.1:3080/plugins/??<包名>/client.js&rev=<哈希>"`
   —— URL 里的 `rev` 参数**不能省**，省了是 404；哈希从 `GET /` 返回的模块表里取。
 
 ### npm 发布（2026-09-17 实测，两条都踩过）
@@ -59,13 +59,15 @@
   并让整个 `pnpm build` / `pnpm dsh web` 退出码 1。构建/起服务这类只清仓库内产物的命令，
   一律加 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 前缀（shim 顶层就认这个开关，实测有效）。
   由此引申：重跑 `pnpm build` 前若 `apps/web/dist` 已有旧产物，先手动清掉可少触发一次闸门。
-- **起 dev 实例验证时用脚本、但要前台跑**——脚本 `exit 0` 后会连带回收 nohup 子进程的
+- **起 web 实例验证时用脚本、但要前台跑**——脚本 `exit 0` 后会连带回收 nohup 子进程的
   情形**只发生在把脚本本身当后台任务**时。要在前台命令里跑：
-  `"C:\Program Files\Git\bin\bash.exe" -lc './harness-server-dev.sh'`（子进程存活，实测）。
+  `"C:\Program Files\Git\bin\bash.exe" -lc './harness-server.sh'`（子进程存活，实测）。
   要用常驻后台任务时，则绕开脚本直接跑
-  `CODEBUDDY_SAFE_DELETE_ENABLED=0 pnpm dsh web --host 127.0.0.1 --port 3180 --no-open`
-  并把 `DSH_HOME` 指到 dev home（`~/.dsh-dev`，与 web 主实例的 `~/.dsh-web` 分开——
+  `CODEBUDDY_SAFE_DELETE_ENABLED=0 pnpm dsh web --host 127.0.0.1 --port 3080 --no-open`
+  并把 `DSH_HOME` 指到 web home（`~/.dsh-web`，与桌面应用的 `~/.dsh` 分开——
   两者共用一个 home 会互相抢 session 写租约），日志自己重定向。
+  注意 `C:\Windows\system32\bash.exe` 是 **WSL bash**，它会命中 `USERPROFILE` 未导出的
+  告警分支；跑该脚本请用 Git Bash（`C:\Program Files\Git\bin\bash.exe`）。
 - **无头验证脚本**：`exploration/web-020-headless-probe.mjs`（首页/控制台/网络/插件 bundle）、
   `exploration/web-020-settings-probe.mjs`（关引导弹窗→进设置页）、
   `exploration/web-020-plugin-sections-probe.mjs`（逐个打开插件分区并转储渲染文本）。
@@ -232,11 +234,10 @@ rc.2 上**确实变了**、且直接命中 `dsh-force-compact` 的两处（细�
 `fc-plugin-load-probe.mjs`、`fc-summary-effort-probe.mjs`（19）、
 `fc-shadow-price-parity-probe.mjs`（38）、`fc-livetext-prefix-probe.mjs`（24）、
 `fc-livetext-apply-probe.mjs`（12）、`fc-release-artifact-check.mjs dsh-force-compact`。
-端到端（3180 dev 实例，`DSH_HOME=~/.dsh-dev`——当时先落在 `~/.dsh-web`，同日改为 dev 独立
-home，见下文三行表）：三个插件在 `pluginInventory/list` 里均为
+端到端（3080 web 实例，`DSH_HOME=~/.dsh-web`）：三个插件在 `pluginInventory/list` 里均为
 `enabled:true` / `fiberPhase:active`，`settings/describe` 出现 `falling-ts-force-compact` 与
 `falling-ts-web-ding` 两个命名空间，`dsh-local-no-auth` 免 token 生效（`/` 与 `/api/*` 均 200）；
-`fc-livetext-e2e-probe.mjs 3180`（17 项：对运行中实例经真实 host RPC 推 `liveUi`，走完
+`fc-livetext-e2e-probe.mjs 3080`（17 项：对运行中实例经真实 host RPC 推 `liveUi`，走完
 broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle 清空；截图
 `exploration/fc-livetext-e2e{,-before}.png`）。
 
@@ -260,16 +261,33 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
   的暗色取值沿 `var()` 链解析到真实 sRGB、按 WCAG 算对比度（当前：暗色说明文字 **17.45:1**），
   拒绝任何指向不存在上游 token 的取值，并守住"浅色取值未漂移"与"设置区无残留字面色"。
 
-## harness-server.sh
+## harness-server.sh（3080 = 本工作区默认开发实例）
 
 - 用法：`bash harness-server.sh`（Linux 或 Windows Git Bash 均可）；
   环境变量覆盖：`PORT`（默认 `3080`）、`BIND_HOST`（默认 `127.0.0.1`）、`WAIT`（默认 `10` 秒；
   未命中视为启动失败退出非零，慢机可覆写 `WAIT=<秒>`）。
+- **3080 是本工作区的默认开发实例，可随时重启 / 停掉**（见文末"会话级授权"）。
+  承载 GUI 的主入口是**桌面应用**（`DeepSeek Harness.exe`，19387，home `~/.dsh`）；
+  本工作区只有这一个 web 实例。
+- **脚本会先引导 profile 的插件**（`[1/4]` 步）：检查 `$DSH_HOME/profiles/web/package.json`
+  是否含三个工作区插件，缺了才 `dsh plugin --profile web add` 一次（`link:` 指向工作树，
+  改源码即生效）。幂等、约 600ms。**这一步不能省**——web home 独立于桌面应用，没有它新
+  home 起出来的是空 profile（免鉴权插件不在 → 浏览器报 authentication required）。脚本同时把
+  `[web] DSH_HOME / port / plugin src / log` 四行打到 stdout，供事后核对加载的是哪份源。
 - 日志写入**脚本调用时的当前目录**：`dsh-web-<PORT>.log`（故根目录忽略 `*.log`）。
-- 脚本第 1 步会杀掉端口占用进程：若当前 harness 自身占用该端口，
+- 脚本第 2 步会杀掉端口占用进程：若当前 harness 自身占用该端口，
   运行脚本会导致承载本 GUI 的 harness 重启。
 - `echo Y |` 前缀是修复 pnpm 交互式重装提示（`Proceed? (Y/n)`）：
   后台进程无 stdin 时会永久挂死在该提示上。
+- **两个 home，一个 host 一个**（2026-09-30 定稿）：
+
+  | home | 归属 | 谁在用 |
+  |------|------|--------|
+  | `~/.dsh` | 桌面应用（内置默认） | `DeepSeek Harness.exe`，也是 GUI 19387 |
+  | `~/.dsh-web` | `harness-server.sh` 的 web 实例 | 3080（默认开发实例） |
+
+  分开的理由是 **session 写租约**（单写者，内核级）：两个 host 共用 home 时后来者会被
+  `session/writer-held` 拒掉，界面显示"当前会话已被占用"。
 
 ## 装插件不必重启运行中的实例（2026-09-30 实测，profile HMR）
 
@@ -287,49 +305,21 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
   `link:` 软链，直接指到仓库工作树；只有**清单/补丁层**的变化才走上面这条热重载。
 
 **装到哪个 home 是常见坑**：`dsh web` 的 profile 目录是 `$DSH_HOME/profiles/web`。
-三个 host 各有一个 home（见下文 `harness-server-dev.sh` 节的三行表）：
-`harness-server.sh` → `~/.dsh-web`，`harness-server-dev.sh` → `~/.dsh-dev`，桌面应用 → `~/.dsh`。
+两个 host 各有一个 home（见上文 `harness-server.sh` 节的两行表）：
+`harness-server.sh` → `~/.dsh-web`，桌面应用 → `~/.dsh`。
 若手工 `pnpm dsh web` 时 `DSH_HOME` 指到别处（例如继承了机器级的 `DSH_HOME=~/.dsh`），
 那里会是**一个全新空的 `web` profile**（无任何插件）→ 表现为浏览器报
 `dsh web authentication required; reopen the URL printed by dsh web`（免鉴权插件不在），
-而且因为落在桌面版的家，左栏还会出现**桌面版的会话列表与账号**。
+而且因为落在桌面版的家，左栏还会出现**桌面版的会话列表与账号**（工作区根那份残留的
+`.dsh-home/` 正是这种空 profile 的现场，别照它起服务）。
 排查第一步就是确认实例用的是哪个 home：
 `netstat -ano | findstr :<port>` 拿 PID，再看 `$DSH_HOME/profiles/web/package.json`
-的 `dsh.profile.bundles` 里有没有你的插件；对照 `~/.dsh-web` / `~/.dsh-dev` / `~/.dsh`
-三个 `sessions/` 目录也能立刻看出串没串台。
+的 `dsh.profile.bundles` 里有没有你的插件；对照 `~/.dsh-web` / `~/.dsh` 两个
+`sessions/` 目录也能立刻看出串没串台。
 
 **注意 `~/.dsh` 是桌面应用的家**：让 web 实例与它共用一个 home 会抢 session 写租约
 （`session/writer-held` → 界面显示"当前会话已被占用"），这正是 launch 脚本把 web 端默认
 挪到 `~/.dsh-web` 的原因。
-
-## harness-server-dev.sh（隔离第三实例 / 开发端口 3180）
-
-- 用法：`bash harness-server-dev.sh`；`DEV_PORT`（默认取 `${DEV_PORT:-${PORT:-3180}}`）。
-- 作用：在**独立的第三个 home** 上起 `dsh web`，专用于在不打断 web 主实例（3080）与桌面版
-  的前提下验证新插件源。它**永不触碰 3080**；仅杀 3180 上的占用者后 `nohup` 后台启动，
-  日志追加到 `./dsh-web-dev-${DEV_PORT}.log`。
-- **三个 home，一个 host 一个**（本工作区 2026-09-30 定稿）：
-
-  | home | 归属 | 谁在用 |
-  |------|------|--------|
-  | `~/.dsh` | 桌面应用（内置默认） | `DeepSeek Harness.exe`，也是 GUI 19387 |
-  | `~/.dsh-web` | `harness-server.sh` 的 web 主实例 | 3080 |
-  | `~/.dsh-dev` | `harness-server-dev.sh` 的 dev 实例 | 3180 |
-
-  分开的理由是** session 写租约**（单写者，内核级）：两个 host 共用 home 时后来者会被
-  `session/writer-held` 拒掉，界面显示"当前会话已被占用"。dev 与 web 也要分开——否则一次
-  dev 实验会和 3080 抢同一批会话。
-- **dev home 自带插件引导**（`[1/4]` 步）：因为 home 独立，主 home 的安装到不了这里，脚本会
-  检查 `~/.dsh-dev/profiles/web/package.json` 是否已含三个工作区插件，缺了才
-  `dsh plugin --profile web add` 一次（`link:` 指向工作树，改源码即生效）。幂等、约 600ms。
-- **授权**：3180 是完全的开发端口，可在任意时刻随意重启 / 停掉（脚本自带"先杀该端口再启动"）。
-- **边界**：web 主实例在 **3080**，不适用此随意重启；重启 3080 属于用户决定。
-- **前台跑就没问题**：早先"别用脚本挂后台任务"的告诫只对**把脚本本身当后台任务**成立
-  （脚本 `exit 0` 后工具连带回收 nohup 子进程）。在普通前台命令里跑
-  `"C:\Program Files\Git\bin\bash.exe" -lc './harness-server-dev.sh'`，脚本退出后子进程照样
-  活着（实测 PID 存活、端口在听）。注意 `C:\Windows\system32\bash.exe` 是 **WSL bash**，
-  它会命中 `USERPROFILE` 未导出的告警分支；测试脚本请用 Git Bash
-  （`C:\Program Files\Git\bin\bash.exe`）。
 
 ## 电脑操作能力（computer use）—— 2026-09-17 在本工作区启用并实测
 
@@ -520,14 +510,14 @@ llm/adapters-updated    settings/document-updated
 - 个别文件名带历史后缀（如 `fcwalk.dry.cjs` / `fcwalk.mjs` / `fcwalk2.mjs`、
   `fcbracecheck.cjs` / `fcbracecheck2.mjs`），保留原名以便对照既有笔记，勿据此推断功能。
 
-## 会话级授权：全程放权 + 默认推荐 + 3180 随手重启（本工作区约定，长期生效）
+## 会话级授权：全程放权 + 默认推荐 + 3080 随手重启（本工作区约定，长期生效）
 
 - 用户在**本工作区**授予：开发过程中**无需逐步请示**，直接推进；遇到多选一
   **默认采用推荐方案**并在结果中标注所选为何；仅在不可逆 / 破坏性动作
   （如推送、删除、改用户主目录数据）前才简短说明。
-- **3180 为开发专用端口**：可随时 `bash harness-server-dev.sh` 重启或停掉（脚本 `DEV_PORT` 可覆盖默认 3180），
-  不必事先询问（见上节"授权"）。**3080 是 web 主实例**（本会话的 GUI 其实是桌面应用的 19387），
-  不适用此随意重启。
+- **3080 是本工作区的默认开发实例**：可随时 `bash harness-server.sh` 重启或停掉
+  （`PORT` 可覆盖默认端口），不必事先询问。承载本会话 GUI 的是**桌面应用**
+  （home `~/.dsh`，GUI 19387），与 3080 是两个进程，重启 3080 不影响它。
 - 文件沙箱策略：本会话为 `danger-full-access`（不受限读写）；审批弹窗在本会话
   **已禁用**——需要审批的动作会被自动拒绝，因此**不要**发起 `sandbox_permissions`
   升级，直接执行即可。

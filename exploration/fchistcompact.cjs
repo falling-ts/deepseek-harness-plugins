@@ -3,7 +3,7 @@
  * session cc257952 的事件流,筛出 compaction 类事件(或 12:02:50–12:03:15 UTC
  * 窗口内的事件),打印其关键字段(type/ts/provider/model/usage/chars...)。
  *
- * 依次尝试 3180(dev)、3080(main),谁认得这个 session 就用谁。
+ * 只在 3080(web 实例)上找这个 session。
  * 用法:node exploration\fchistcompact.cjs
  */
 'use strict'
@@ -56,7 +56,7 @@ async function tryPort(port) {
 }
 
 ;(async () => {
-  for (const port of [3180, 3080]) {
+  for (const port of [3080]) {
     const r = await tryPort(port)
     if (!r.hit) {
       console.log(`[port ${port}] miss: ${r.err}`)

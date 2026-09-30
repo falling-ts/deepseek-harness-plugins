@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// Probe: drive ONE clean flush on the 3180 dev instance and report the
+// Probe: drive ONE clean flush on the 3080 dev instance and report the
 // session id it produced. Usage:
-//   node fcdrive3180.cjs <port>
+//   node fcdrive3080.cjs <port>
 // Creates a session, queues a trivial prompt, waits briefly, prints the new
 // session id so the operator can grep the plugin debug log for its gate lines.
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
-const port = process.argv[2] || '3180'
+const port = process.argv[2] || '3080'
 const base = `http://127.0.0.1:${port}`
 
 async function rpc(method, payload) {

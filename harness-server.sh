@@ -2,19 +2,22 @@
 # harness-server.sh — start the DeepSeek Harness web server (pnpm dsh web).
 #
 # Cross-platform: works on Linux and on Windows Git Bash.
+# This is the workspace's DEFAULT DEVELOPMENT INSTANCE (127.0.0.1:3080).
 # Usage:
 #   bash harness-server.sh                # default port 3080
 #   PORT=8123 bash harness-server.sh      # custom port
 #   WAIT=60 bash harness-server.sh        # longer startup wait (default 10s;
 #                                         # a 10s miss is treated as a failure)
+#   DSH_HOME=~/.dsh bash harness-server.sh  # override the home
 #
 # Steps:
-#   [1/3] kill whatever is listening on the port
-#   [2/3] start `pnpm dsh web` in the background (nohup, output appended to $LOG)
-#   [3/3] wait up to $WAIT seconds for the port; on failure dump the log tail
+#   [1/4] bootstrap this home's `web` profile with the workspace plugins
+#   [2/4] kill whatever is listening on the port
+#   [3/4] start `pnpm dsh web` in the background (nohup, output appended to $LOG)
+#   [4/4] wait up to $WAIT seconds for the port; on failure dump the log tail
 #
 # Notes:
-#   - Step [1/3] kills any process listening on $PORT (default 3080).
+#   - Step [2/4] kills any process listening on $PORT (default 3080).
 #   - `echo Y |` pipes "Y" into pnpm's stdin so the
 #     "The modules directories will be removed and reinstalled from scratch.
 #     Proceed? (Y/n)" prompt is answered automatically. Without a piped
@@ -36,10 +39,10 @@ WAIT_SECS="${WAIT:-10}"
 
 # DSH_HOME defaults to ~/.dsh-web, a home OWNED BY THE WEB SERVER.
 #
-# Three homes, one per host:
+# Two homes, one per host:
 #   ~/.dsh        the desktop app's own home (its built-in default)
-#   ~/.dsh-web    this script's web server (default port 3080)
-#   ~/.dsh-dev    harness-server-dev.sh's dev instance (default port 3180)
+#   ~/.dsh-web    this script's web server — port 3080, the workspace's default
+#                 development instance
 #
 # Why not ~/.dsh (2026-09-30): the installed desktop app keeps using ~/.dsh. A
 # session directory is guarded by a cross-process write lease (single writer,
@@ -48,8 +51,7 @@ WAIT_SECS="${WAIT:-10}"
 # with `session/writer-held`, which the client renders as "当前会话已被占用…".
 # A dsh web instance takes that lease on every session it restores, including
 # the session the desktop currently has open — this web server therefore gets
-# its own home and cannot touch the desktop's sessions. The dev script splits
-# again for the same reason: 3080 and 3180 must not fight over one store.
+# its own home and cannot touch the desktop's sessions.
 #
 # CAVEAT: an explicit DSH_HOME in the environment WINS over this default (the
 # `:-` below), so a machine-wide DSH_HOME (e.g. a User-scope variable pointing at
@@ -87,10 +89,48 @@ export pnpm_config_verify_deps_before_run=false
 # No environment variable to export here.
 
 ROOT="$(cd "$(dirname "$0")/deepseek-harness" && pwd)"
+PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"   # workspace root containing dsh-force-compact/
 
 LOG="$(pwd)/dsh-web-${PORT}.log"   # log goes to the current directory (at invocation time); appended (>>) on each start
 
-echo "[1/3] Stopping existing service on port $PORT..."
+echo "[web] DSH_HOME      = $DSH_HOME"
+echo "[web] port          = $PORT (bind $BIND_HOST)"
+echo "[web] plugin src    = $PLUGIN_DIR"
+echo "[web] log           = $LOG"
+
+# ── [1/4] ensure THIS home's web profile carries the workspace plugins ───────
+# The web home is its own home (see the DSH_HOME block), so it needs its own
+# install; the desktop app's install does not reach it, and a home that was
+# never bootstrapped would serve WITHOUT the plugins (the loopback no-auth
+# plugin included, so the browser would ask for the launch token). Idempotent
+# and cheap: `dsh plugin add` links the working tree, and a profile-manifest
+# change is picked up live by the profile HMR watcher (packages/boot/hmr), so
+# this is also safe to run against an instance that is already up.
+PROFILE_MANIFEST="$DSH_HOME/profiles/web/package.json"
+PLUGIN_NAMES=(dsh-force-compact dsh-local-no-auth dsh-web-ding)
+NEED_INSTALL=0
+for name in "${PLUGIN_NAMES[@]}"; do
+  if [ ! -f "$PROFILE_MANIFEST" ] || ! grep -q "@falling-ts/$name" "$PROFILE_MANIFEST"; then
+    NEED_INSTALL=1
+  fi
+done
+if [ "$NEED_INSTALL" = "1" ]; then
+  echo "[1/4] Bootstrapping $DSH_HOME/profiles/web with the workspace plugins..."
+  cd "$ROOT" || { echo "ERROR: repo root not found at $ROOT" >&2; exit 1; }
+  command -v pnpm >/dev/null 2>&1 || { echo "ERROR: pnpm not found on PATH" >&2; exit 1; }
+  PLUGIN_PATHS=()
+  for name in "${PLUGIN_NAMES[@]}"; do PLUGIN_PATHS+=("$PLUGIN_DIR/$name"); done
+  # "Y" answers pnpm's interactive reinstall prompt; a detached pnpm would hang on it.
+  if echo Y | pnpm dsh plugin --profile web add "${PLUGIN_PATHS[@]}" >/dev/null 2>&1; then
+    echo "      linked: ${PLUGIN_NAMES[*]}"
+  else
+    echo "      WARNING: bootstrap failed — the web instance will start WITHOUT the plugins" >&2
+  fi
+else
+  echo "[1/4] $DSH_HOME/profiles/web already carries the workspace plugins"
+fi
+
+echo "[2/4] Stopping existing service on port $PORT..."
 PIDS="$(netstat -ano 2>/dev/null | tr -d '\r' | grep -E "[:.]${PORT}[[:space:]]" | grep -iE 'LISTEN' | awk '{print $NF}' | sed 's/\/.*//' | sort -u)"
 if [ -n "$PIDS" ]; then
   for PID in $PIDS; do
@@ -102,21 +142,21 @@ if [ -n "$PIDS" ]; then
   done
   sleep 1
 else
-  echo "      (none found)"
+  echo "      (none found on $PORT)"
 fi
 
-echo "[2/3] Starting pnpm dsh web (--host $BIND_HOST --port $PORT) in the background..."
+echo "[3/4] Starting pnpm dsh web (--host $BIND_HOST --port $PORT) in the background..."
 cd "$ROOT" || { echo "ERROR: repo root not found at $ROOT"; exit 1; }
 command -v pnpm >/dev/null 2>&1 || { echo "ERROR: pnpm not found on PATH"; exit 1; }
 echo Y | nohup pnpm dsh web --host "$BIND_HOST" --port "$PORT" --no-open >> "$LOG" 2>&1 &
 SRV_PID=$!
 echo "      (server PID $SRV_PID, log: $LOG)"
 
-echo "[3/3] Waiting for port $PORT (up to ${WAIT_SECS}s)..."
+echo "[4/4] Waiting for port $PORT (up to ${WAIT_SECS}s)..."
 i=0
 while [ "$i" -lt "$WAIT_SECS" ]; do
-  if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
-    echo "OK: port $PORT is up -> http://127.0.0.1:$PORT"
+  if (exec 3<>"/dev/tcp/$BIND_HOST/$PORT") 2>/dev/null; then
+    echo "OK: port $PORT is up -> http://$BIND_HOST:$PORT"
     exit 0
   fi
   i=$((i + 1))

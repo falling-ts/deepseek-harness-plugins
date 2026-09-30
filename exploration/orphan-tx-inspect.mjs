@@ -8,7 +8,7 @@ const SID = 'session-45ad374f-dbbb-4799-88f4-0d4771e9d1b4';
 function rpc(method, payload) {
   const body = JSON.stringify({ type: 'client-request', rpcId: 'o' + Date.now(), method, payload });
   return new Promise((res, rej) => {
-    const rq = http.request({ host: '127.0.0.1', port: 3180, path: '/api/' + method, method: 'POST', headers: { 'Content-Type': 'application/json' } }, rs => {
+    const rq = http.request({ host: '127.0.0.1', port: 3080, path: '/api/' + method, method: 'POST', headers: { 'Content-Type': 'application/json' } }, rs => {
       let b = ''; rs.on('data', c => b += c);
       rs.on('end', () => { try { res(JSON.parse(b)); } catch (e) { rej(e); } });
     });

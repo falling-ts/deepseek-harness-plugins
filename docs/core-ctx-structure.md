@@ -1,6 +1,6 @@
 # DSH 核心 `ctx`（Context）结构与服务能力全景
 
-> 本文基于在开发实例 3180 上运行的 `@falling-ts/dsh-force-compact` 插件注入的两只一次性探针实测采集，并用
+> 本文基于在开发实例 3080 上运行的 `@falling-ts/dsh-force-compact` 插件注入的两只一次性探针实测采集，并用
 > `deepseek-harness/vendor/cordis/src/{context,fiber,reflect,events,logger,registry}.ts` 与
 > `packages/*/src/index.ts` 中的 `declare module '@deepseek-ai/cordis' { interface Context { … } }` 声明交叉验证。
 >
@@ -246,12 +246,12 @@ depth 7:  { root, baseUrl, fiber, reflect, registry,
      逐个 `ctx.get(name)` 采样，把结果写到 `~/.dsh/logs/ctx-probe/ctx-snapshot-boot-<UTCISO>.json`。
    - 在 `dsh-force-compact/src/hooks/idle.js` 的 `handleAgentStatus` 顶部挂同样的采集逻辑，
      用 `ctx-snapshot-realm-<last12sid>.json` 做文件名（防重复）。
-2. **重启 3180 开发实例**：`bash harness-server-dev.sh`（本工作区已授权的随意重启），
+2. **重启 3080 开发实例**：`bash harness-server.sh`（本工作区已授权的随意重启），
    然后通过 wire 协议触发一次真实的 `agent/status` → `idle` 循环：
 
    ```powershell
-   POST http://127.0.0.1:3180/api/session.create   {}
-   POST http://127.0.0.1:3180/api/session.prompt  { sessionId:"…", mode:"queue", content:[{type:"text",text:"hi"}] }
+   POST http://127.0.0.1:3080/api/session.create   {}
+   POST http://127.0.0.1:3080/api/session.prompt  { sessionId:"…", mode:"queue", content:[{type:"text",text:"hi"}] }
    # 等 ~30 s 让 agent 走完一轮进入 idle
    ```
 

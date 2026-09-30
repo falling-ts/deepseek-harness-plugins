@@ -1,6 +1,6 @@
-// fc-loop-smoke-3180.cjs — wire smoke against 3180 using the CURRENT gateway
+// fc-loop-smoke-3080.cjs — wire smoke against 3080 using the CURRENT gateway
 // contract (slash endpoints under /api, args-wrapped payloads).
-const BASE = 'http://127.0.0.1:3180/api'
+const BASE = 'http://127.0.0.1:3080/api'
 let rpcSeq = 0
 const rpcId = () => 'smoke-' + Date.now() + '-' + (rpcSeq++)
 

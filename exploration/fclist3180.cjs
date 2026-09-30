@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // List sessions visible on a given harness dev port. Prints each session id
 // plus whatever count field is present.
-const port = process.argv[2] || '3180'
+const port = process.argv[2] || '3080'
 const base = `http://127.0.0.1:${port}`
 async function rpc(method, payload) {
   const res = await fetch(`${base}/api/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'client-request', rpcId: `lst-${Date.now()}`, method, payload }) })

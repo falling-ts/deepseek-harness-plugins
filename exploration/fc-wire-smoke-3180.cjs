@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * fc-wire-smoke-3180.cjs — verify the summarizer's llama.cpp compat wire
+ * fc-wire-smoke-3080.cjs — verify the summarizer's llama.cpp compat wire
  * field (reasoning_effort:"none") is ACTUALLY stamped onto the options object
  * handed to llm.stream when disableThinking is true.
  *
@@ -13,7 +13,7 @@
  *       b. extra = { }                            → expect options.reasoning_effort === undefined
  *   4. Print a PASS/FAIL table.
  *
- * Run:  node exploration/fc-wire-smoke-3180.cjs
+ * Run:  node exploration/fc-wire-smoke-3080.cjs
  */
 const assert = require('node:assert')
 const path = require('node:path')

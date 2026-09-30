@@ -1,4 +1,4 @@
-// fc-stuck-banner-3180.cjs — prove the "stuck [强制压缩中>>] banner" fix:
+// fc-stuck-banner-3080.cjs — prove the "stuck [强制压缩中>>] banner" fix:
 //  1) create a fresh session;
 //  2) push a FAKE pinned COMPRESSING banner into falling-ts-force-compact.liveUi
 //     (simulating the stuck red banner that a never-committed compaction leaves);
@@ -6,7 +6,7 @@
 //     (isCompactionActive=false for a fresh session) -> publishUiStatus(workingPair, important=true)
 //     which OVERRIDES the bracket banner;
 //  4) read settings/describe -> liveUi.text must now be a working pair, NOT the bracket.
-const BASE = 'http://127.0.0.1:3180/api'
+const BASE = 'http://127.0.0.1:3080/api'
 const NS = 'falling-ts-force-compact'
 
 async function call(method, args) {

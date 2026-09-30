@@ -7,7 +7,7 @@
 // positions are balanced?
 import http from 'http';
 import { toolPairingBalancedAfterSafe } from '../dsh-force-compact/src/core/pairing.js';
-const PORT = 3180, SID = 'session-e6f6b64f-7067-4c98-9706-45d74b28dae5';
+const PORT = 3080, SID = 'session-e6f6b64f-7067-4c98-9706-45d74b28dae5';
 function rpc(method, payload) {
   const body = JSON.stringify({ type: 'client-request', rpcId: 'probe-' + Date.now(), method, payload });
   return new Promise((resolve, reject) => {

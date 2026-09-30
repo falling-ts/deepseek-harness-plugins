@@ -51,4 +51,4 @@ if (pricedNodes !== null && misaligned) { /* REFUSING … 日志与原先一致 
 ```
 
 - **偏差说明**：官方源码（`selectCompactableRange`）的两边恰是"裸 seq vs 对象"的镜像关系（`surfaceNodes.some((seq, i) => seq !== pricedNodes[i]?.seq)`），我们的方向相反（对象在前）——这正是上一提交抄反了形状的方向；修复后两侧都取 `.seq` 数值比较，官方"拒绝陈旧跨度"语义保持不变，另增对 `node` 非对象 / `seq` 非数字的防御分支（超出官方信任级别，plain-JS 插件热路径惯例）。
-- **活体证据**：修复后 3180 全新实例（PID 17044，无陈旧源）上会话 `e6f6b64f` 完成首次真实压缩——`REGION-PICK … boundaryKind=crossing-fallback retainedTokens=11155` → `builtin compaction OK — replaced span seq[7..798] (39 nodes, ~9184 tokens)`；重启后 gate-fire 2 次、假 REFUSAL 0 次。
+- **活体证据**：修复后 3080 全新实例（PID 17044，无陈旧源）上会话 `e6f6b64f` 完成首次真实压缩——`REGION-PICK … boundaryKind=crossing-fallback retainedTokens=11155` → `builtin compaction OK — replaced span seq[7..798] (39 nodes, ~9184 tokens)`；重启后 gate-fire 2 次、假 REFUSAL 0 次。

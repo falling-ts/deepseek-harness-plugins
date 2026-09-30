@@ -1,5 +1,5 @@
 // End-to-end probe for the force-compact LiveUI prefix replacer against a LIVE
-// `dsh web` instance (default port 3180).
+// `dsh web` instance (default port 3080).
 //
 // Why it does not call a model
 // ----------------------------
@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url'
 const require = createRequire(new URL('../deepseek-harness/apps/web/package.json', import.meta.url))
 const { chromium } = require('playwright')
 
-const PORT = Number(process.argv[2] ?? 3180)
+const PORT = Number(process.argv[2] ?? 3080)
 const BASE = `http://127.0.0.1:${PORT}`
 const NS = 'falling-ts-force-compact'
 const SHOT = fileURLToPath(new URL('./fc-livetext-e2e.png', import.meta.url))

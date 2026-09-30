@@ -260,7 +260,7 @@ modules (@deepseek-ai/dsh-client-modules): client bundles not found;
 | `exploration/fc-badge-i18n-parity-probe.mjs` | 徽标双语词典逐元素一致（回归） | 20/20 一致 |
 | `dsh-force-compact/verify-region-order.mjs` | 选区乱序容错（回归） | 7 组断言通过 |
 
-另有活体证据：重建后的 3180 实例在新 harness 上启动成功（dev 日志零 typert 报错），
+另有活体证据：重建后的 3080 实例在新 harness 上启动成功（web 日志零 typert 报错），
 `[force-compact] debug logging enabled` 与 `[dsh-local-no-auth] active: …` 均正常写出。
 
 ## 9. 遗留与未决
@@ -270,7 +270,7 @@ modules (@deepseek-ai/dsh-client-modules): client bundles not found;
   baseline external；`inject` 目前纯信息性，不构成缺陷，但若上游收紧该校验，这是
   首个会被点名的行（`dsh-web-ding` / `dsh-force-compact` 各一处）。
 - **`appExit` 的进程级时序**：已由源码证据（`profile-boot.ts` 对"退出请求在 setup
-  期间落地"的显式处理）与单元级探针支撑，尚未做"真让 3180 拒载并观察退出码"的
+  期间落地"的显式处理）与单元级探针支撑，尚未做"真让 3080 拒载并观察退出码"的
   进程级实测。
 - **live patch reload 与实例替换的交互**：`connection` entry 若重载而插件 entry 未重启，
   补丁会留在旧实例上（既有形状，非本次回归）。

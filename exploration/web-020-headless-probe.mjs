@@ -13,13 +13,13 @@
  *     form namespaces through the RPC describe surface
  *   - screenshots (light + the dark-theme attribute) for eyeballing
  *
- * Usage: node exploration/web-020-headless-probe.mjs [port]   (default 3180)
+ * Usage: node exploration/web-020-headless-probe.mjs [port]   (default 3080)
  */
 import { createRequire } from 'node:module'
 const require = createRequire('D:/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
-const PORT = Number(process.argv[2] ?? 3180)
+const PORT = Number(process.argv[2] ?? 3080)
 // `dsh web` gates every route behind an auth token that is regenerated on each
 // start; pass it in via DSH_TOKEN (grep it out of the server log) or the probe
 // only ever sees 401s. An empty token keeps the old bare-URL behaviour.

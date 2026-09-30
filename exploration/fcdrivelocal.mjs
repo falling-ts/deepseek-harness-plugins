@@ -5,7 +5,7 @@
  *
  * Run:  node exploration/fcdrivelocal.mjs [port] ["prompt text"]
  */
-const PORT = Number(process.argv[2] ?? 3180)
+const PORT = Number(process.argv[2] ?? 3080)
 const PROMPT = process.argv[3] ?? 'Say exactly: ping (one short line only)'
 const EXISTING_SESSION = process.argv[4]
 const BASE = `http://127.0.0.1:${PORT}`

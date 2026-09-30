@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * fc-wire-smoke-3180b.cjs — refined unit smoke. Stubs the session with a
+ * fc-wire-smoke-3080b.cjs — refined unit smoke. Stubs the session with a
  * minimal shape that satisfies the plugin's target-resolution walk
  * (level-1 explicit config takes priority, so levels 2/3 are never reached —
  * no need for requestHeader). Verifies the summarizer's options construction

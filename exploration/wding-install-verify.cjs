@@ -2,10 +2,10 @@
 // Creates a session, prompts once, polls settings.describe until the host half
 // publishes falling-ts-web-ding.signal = {phase:'done', ...} (idle transition),
 // then prints the observed signal. Exit 0 on success.
-// Usage: node exploration/wding-install-verify.cjs [http://127.0.0.1:3180] [timeoutSec=120]
+// Usage: node exploration/wding-install-verify.cjs [http://127.0.0.1:3080] [timeoutSec=120]
 const http = require('http');
 
-const [,, base = 'http://127.0.0.1:3180', tsec = '120'] = process.argv;
+const [,, base = 'http://127.0.0.1:3080', tsec = '120'] = process.argv;
 const timeoutMs = Number(tsec) * 1000;
 const NS = 'falling-ts-web-ding';
 

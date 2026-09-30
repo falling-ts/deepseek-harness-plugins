@@ -1,6 +1,6 @@
-// fc-settings-3180.cjs — read the falling-ts-force-compact namespace on 3180
+// fc-settings-3080.cjs — read the falling-ts-force-compact namespace on 3080
 // to confirm the effective threshold/retention values.
-const BASE = 'http://127.0.0.1:3180/api'
+const BASE = 'http://127.0.0.1:3080/api'
 async function call(method, args) {
   const res = await fetch(`${BASE}/${method}`, {
     method: 'POST',

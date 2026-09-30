@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * fc-deepseek-reqext-3180.cjs — reproduce "DeepSeek request extension preparation failed"
- * on the 3180 dev instance by routing a real request to the `deepseek-official` provider.
+ * fc-deepseek-reqext-3080.cjs — reproduce "DeepSeek request extension preparation failed"
+ * on the 3080 dev instance by routing a real request to the `deepseek-official` provider.
  *
  * Sequence: session/create -> session/selectModel(deepseek-official/deepseek-v4-flash)
  *           -> session/prompt (short). The adapter calls deepseekLlmApiExtensions.prepare()
@@ -9,9 +9,9 @@
  *           an active package's identity, the whole request fails with REQUEST_EXTENSION
  *           and the wrapped `cause` names the failing package.
  *
- * Usage: node exploration/fc-deepseek-reqext-3180.cjs [port]
+ * Usage: node exploration/fc-deepseek-reqext-3080.cjs [port]
  */
-const PORT = process.argv[2] || '3180'
+const PORT = process.argv[2] || '3080'
 const BASE = `http://127.0.0.1:${PORT}`
 
 async function rpc(method, args) {
@@ -45,7 +45,7 @@ async function main() {
   })
   console.log('prompt accepted:', JSON.stringify(prompt?.result?.ok), '->', JSON.stringify(prompt?.result?.value))
 
-  console.log('sessionId=', sessionId, '(check 3180 log for the REQUEST_EXTENSION cause)')
+  console.log('sessionId=', sessionId, '(check 3080 log for the REQUEST_EXTENSION cause)')
 }
 
 main().catch(e => { console.error('probe error:', e); process.exit(1) })
