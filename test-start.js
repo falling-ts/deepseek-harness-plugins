@@ -99,6 +99,14 @@ const COUNT_FILE = join(tmpdir(), 'harness-popup-count.txt');
 const SIGNAL_FILE = join(tmpdir(), 'dsh-start-command-child.txt');
 
 /**
+ * 动作进程的启动工作目录。**故意不是会话工作目录**(见 {@link launcherScript} 的注解):
+ * 宿主可能把这条命令放在受沙箱约束的会话目录里执行,而 `Start-Process` 在"当前目录不可访问"
+ * 时会静默失败。`%TEMP%` 总是可写、且与任何会话无关,所以把它钉在这里;
+ * 会话目录只作为显示文本出现在窗口第三行,不当 cwd 用。
+ */
+const LAUNCH_CWD = tmpdir();
+
+/**
  * 记事本模式写入并打开的文档。**路径保持纯 ASCII**——中文只活在文件内容里,
  * 于是命令行、控制台代码页、PowerShell 的 `-EncodedCommand` 都不参与中文传递。
  */
@@ -725,6 +733,15 @@ function actionArgs(script) {
  * (`started=False`),而 `Start-Process` 的孙进程与 WMI 建的进程都活过了 12 秒、
  * 也活过了宿主那条「开始前命令」shell 的退出。也就是说 detached 这条路在本机是**假成功**:
  * 命令"跑了"、窗口却不出现,正是"我明明执行了却没有弹窗"的现场。
+ *
+ * 但 `Start-Process` 有一个**继承工作目录**的致命细节(2026-09-30 第二次实测补上):
+ * 当宿主把这条命令放在一个 **受沙箱约束的会话工作目录**里执行(实测 `workspace-write`
+ * 的会话),`Start-Process` 会因为**当前目录不可访问**而失败——而且失败得很安静:
+ * 启动器退出码为 null、被拉起的进程根本没建出来(PID 为空)、屏幕上什么都没有。
+ * 判据(同一目录、同一命令,只换启动形态):`Start-Process -WorkingDirectory <会话目录>`
+ * → `status=null` 且计数不变;直接 `execFile` → `status=0`、`confirmed=Y`、计数 +1。
+ * 因此显式把工作目录钉在 `%TEMP%`(它总是可写、且与任何会话工作目录无关),再让动作
+ * 进程自己带着需要的信息(会话目录只作为**显示文本**出现在窗口上,不再当 cwd)。
  */
 function launcherScript(script) {
   const quoted = actionArgs(script).map(psLiteral).join(', ');
@@ -734,14 +751,14 @@ function launcherScript(script) {
     : '';
   return `
 $ErrorActionPreference = 'Stop'
-Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru${redirect} -ArgumentList @(${quoted}) | Out-Null
+Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru${redirect} -WorkingDirectory ${psLiteral(LAUNCH_CWD)} -ArgumentList @(${quoted}) | Out-Null
 exit 0
 `;
 }
 
 /** 二级兜底启动器:经 WMI 建进程(父进程是 WmiPrvSE,天然不在本进程的任务对象里)。 */
 function wmiScript(script) {
-  const cmdline = 'powershell.exe ' + actionArgs(script).join(' ');
+  const cmdline = `cd /d "${LAUNCH_CWD}" && powershell.exe ` + actionArgs(script).join(' ');
   return `
 $ErrorActionPreference = 'Stop'
 $null = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${psLiteral(cmdline)} }
@@ -800,7 +817,11 @@ async function dispatchAction(script) {
 
   let pid = null;
   try {
-    const child = spawn('powershell.exe', actionArgs(script), { stdio: 'ignore', windowsHide: true });
+    const child = spawn('powershell.exe', actionArgs(script), {
+      stdio: 'ignore',
+      windowsHide: true,
+      cwd: LAUNCH_CWD,
+    });
     child.unref();
     pid = child.pid;
   } catch { /* 起不来就算了 */ }

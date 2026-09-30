@@ -278,8 +278,8 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 `icon` 存在与体积、`exports`/`files` 覆盖（做过反向验证：移走 `locale/zh.json` 即红）；新增
 `exploration/wd-signal-title-probe.mjs`（27 项：Host 侧标题读取与信号契约的 7 种降级）；
 `exploration/wd-audio-unlock-apply-probe.mjs` 扩到 31 项（工厂纯净、apply 所有权与撤销、零 RPC、
-首帧两种情形）；`dsh-start-command` 自带四支：`exploration/sc-prestep-probe.mjs`（63 项，离线：
-门禁矩阵 / 空值零副作用 / 执行路径 / 回合闩锁 / waterfall 语义）、
+首帧两种情形）；`dsh-start-command` 自带四支：`exploration/sc-prestep-probe.mjs`（75 项，离线：
+门禁矩阵 / 空值零副作用 / 执行路径 / 回合闩锁 / waterfall 语义 / 落盘运行日志）、
 `exploration/sc-e2e-probe.mjs 3080`（17 项，真回合：命令确实执行、早于本回合首条模型消息、
 模型在第一个步骤读到产物；清空后不再执行）、
 `exploration/sc-settings-ui-probe.mjs 3080`（7 项，真浏览器：分区渲染 + 读路径 + 经「保存」的写路径）、
@@ -311,6 +311,18 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
 > stdout 打 `dispatched via=start-process confirmed=Y`——`confirmed` 是实测结论，不是"我以为我发出去了"。
 > 宿主是**提权后台进程**时，抢焦点还得 `AttachThreadInput` → 松一次 Alt 键 → `SwitchToThisWindow`
 > 三级连锁（`--focus` 才用；"看得见"本身靠 `TopMost`，不依赖抢焦点成功）。
+>
+> ⚠️ **`Start-Process` 会继承工作目录，而会话工作目录可能不可访问**（2026-09-30 补充实测，
+> 这是"web 端发消息什么都不弹"的**第二层**原因）：插件把命令放在**会话自己的沙箱策略**下执行，
+> 而 `workspace-write` 会话的工作目录是被围栏锁住的——在那种目录里 `Start-Process` **静默失败**：
+> 启动器 `status=null`、被拉起的 PID 为空、屏幕上什么都没有。判据（同一目录、同一命令，只换启动
+> 形态）：`Start-Process -WorkingDirectory <会话目录>` → 失败；同一目录下直接 `execFile` → 正常。
+> 因此三条派发路径（`Start-Process` / WMI / 直接 spawn）**一律显式把工作目录钉在 `%TEMP%`**，
+> 会话目录只当**显示文本**用。同时实测出该策略下另外两条：宿主给**每条命令**一个一次性临时目录
+> （`%TEMP%\dsh-XXXXXX\`，用完即回收，所以 `%TEMP%` 里的跨次计数器会从 1 重新开始、且目录可能在
+> 动作进程还在用时就被收走）；命令内部再 `spawn` 子进程会拿到 **`EPERM`**——命令退出码**仍是 0**，
+> 即"`exit=0`"不等于"副作用发生了"。这也解释了为什么阈值是 `danger-full-access`（全链路可用）而
+> `workspace-write` 会话里命令"成功"却什么都看不见。
 >
 > ⚠️ **两个 home 现在都装了这条链路**：`~/.dsh-web/profiles/web`（3080）与
 > `~/.dsh/profiles/desktop`（桌面应用 19387，也就是用户实际打字的那个 GUI——2026-09-30 之前

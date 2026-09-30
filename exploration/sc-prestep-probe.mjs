@@ -13,7 +13,8 @@
  *
  * 用法:node exploration/sc-prestep-probe.mjs
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -302,7 +303,75 @@ console.log('\n=== 回合闩锁 ===')
   preStep.clearLatches()
 }
 
-// ── 6. waterfall 语义(apply 注册的那个监听器) ──────────────────────────────
+// ── 6. 落盘运行日志(每一次"有命令的决策"都留一行) ──────────────────────────
+/** 把日志指向一个临时文件,返回读取函数;`undefined` 表示关掉这个 sink。 */
+function withOutcomeLog(file) {
+  const previous = process.env.DSH_START_COMMAND_LOG
+  if (file === undefined) process.env.DSH_START_COMMAND_LOG = ''
+  else process.env.DSH_START_COMMAND_LOG = file
+  return () => {
+    if (previous === undefined) delete process.env.DSH_START_COMMAND_LOG
+    else process.env.DSH_START_COMMAND_LOG = previous
+  }
+}
+const readLog = (file) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n') : [])
+
+console.log('\n=== 落盘运行日志 ===')
+{
+  const file = join(mkdtempSync(join(tmpdir(), 'sc-log-')), 'run.log')
+  const restore = withOutcomeLog(file)
+  try {
+    const shell = makeShell()
+    const booted = boot({ command: 'git pull', services: { shell: shell.service } })
+    await preStep.maybeRunStartCommand(booted.ctx, makePayload({ turn: 7 }))
+    const lines = readLog(file)
+    check(lines.length === 1, '命令跑完写一行', JSON.stringify(lines))
+    check(/\[start-command\] ran/.test(lines[0] ?? ''), '记录 kind=ran', lines[0])
+    check(/session=session-test/.test(lines[0] ?? ''), '记录会话 id', lines[0])
+    check(/turn=7/.test(lines[0] ?? ''), '记录回合号', lines[0])
+    check(/exit=0/.test(lines[0] ?? ''), '记录退出码', lines[0])
+    check(/^\d{4}-\d{2}-\d{2}T/.test(lines[0] ?? ''), '行首是 ISO 时间戳', lines[0])
+
+    // 门禁拒绝同样留痕 —— 从外面看"没弹窗"和"没跑"是一样的,所以这条必须可查。
+    const busy = boot({ command: 'ls', services: { agents: { list: () => [makeAgent({ sessionId: 'x' })] } } })
+    await preStep.maybeRunStartCommand(busy.ctx, makePayload({ turn: 2 }))
+    const refused = readLog(file).at(-1)
+    check(/reason=other-agent-running/.test(refused ?? ''), '被门禁压制也留一行(含稳定 reason)', refused)
+    check(readLog(file).length === 2, '两次决策共两行', String(readLog(file).length))
+
+    // 空命令 = 零副作用,连日志都不写。
+    const blank = boot({ command: '   ' })
+    await preStep.maybeRunStartCommand(blank.ctx, makePayload())
+    check(readLog(file).length === 2, '未配置命令时不写日志(零副作用)', String(readLog(file).length))
+
+    // 执行器缺席 / 抛异常:仍然是一行 failed,且带原因。
+    const noShell = boot({ command: 'ls', services: {} })
+    await preStep.maybeRunStartCommand(noShell.ctx, makePayload({ turn: 3 }))
+    check(/\[start-command\] failed .*did not run \(no-shell\)/.test(readLog(file).at(-1) ?? ''), '执行器缺席记为 failed', readLog(file).at(-1))
+  } finally { restore() }
+}
+{
+  // 关掉 sink:一行都不写,且不抛。
+  const restore = withOutcomeLog(undefined)
+  try {
+    const shell = makeShell()
+    const booted = boot({ command: 'ls', services: { shell: shell.service } })
+    const outcome = await preStep.maybeRunStartCommand(booted.ctx, makePayload())
+    check(outcome.ran === true, 'DSH_START_COMMAND_LOG 为空 = 关掉 sink,命令照常执行')
+  } finally { restore() }
+}
+{
+  // 路径不可写时绝不抛(日志失败不能失败一个回合)。
+  const restore = withOutcomeLog('Z:\\definitely\\missing\\drive\\run.log')
+  try {
+    const shell = makeShell()
+    const booted = boot({ command: 'ls', services: { shell: shell.service } })
+    const outcome = await preStep.maybeRunStartCommand(booted.ctx, makePayload())
+    check(outcome.ran === true, '日志路径不可写时命令照常执行、绝不抛')
+  } finally { restore() }
+}
+
+// ── 7. waterfall 语义(apply 注册的那个监听器) ──────────────────────────────
 console.log('\n=== waterfall 语义 ===')
 {
   const shell = makeShell()
