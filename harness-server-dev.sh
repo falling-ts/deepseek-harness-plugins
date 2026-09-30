@@ -3,8 +3,14 @@
 #
 # A sibling of harness-server.sh that NEVER touches port 3080. It spins up an
 # isolated `pnpm dsh web` on its own port (default 3180) reusing the same
-# DSH_HOME profile/plugins, so new plugin source can be exercised without
-# interrupting the primary 3080 instance that your current session rides on.
+# DSH_HOME profile/plugins as the main script, so new plugin source can be
+# exercised without interrupting the primary 3080 instance that your current
+# session rides on.
+#
+# DSH_HOME defaults to ~/.dsh-web — the web server's own home, deliberately NOT
+# the desktop app's ~/.dsh (see the DSH_HOME block below and in
+# harness-server.sh). The dev instance therefore shares a home with the 3080
+# web server but never with the desktop app.
 #
 # Usage:
 #   bash harness-server-dev.sh              # default port 3180
@@ -33,11 +39,21 @@ BIND_HOST="${BIND_HOST:-127.0.0.1}"
 WAIT_SECS="${WAIT:-10}"
 
 # Same DSH_HOME as the main script so the identical profile/plugins (including
-# the freshly-edited dsh-force-compact source) are loaded.
+# the freshly-edited dsh-force-compact source) are loaded — that home is
+# ~/.dsh-web, the web server's own store, kept apart from the desktop app's
+# ~/.dsh so neither host can take the other's session write lease.
+# Point a run elsewhere with DSH_HOME=... (e.g. a throwaway ~/.dsh-dev).
+# Git Bash exports $USERPROFILE; a shell that does not (WSL bash, $HOME=/home/x)
+# cannot be fixed up from inside — cmd.exe interop inherits the same missing
+# variable — so that case warns instead of handing the Windows Node a POSIX
+# path it would resolve against the current drive.
 if [ -n "${USERPROFILE:-}" ]; then
-  export DSH_HOME="${DSH_HOME:-$USERPROFILE/.dsh}"
+  export DSH_HOME="${DSH_HOME:-$USERPROFILE/.dsh-web}"
 else
-  export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
+  export DSH_HOME="${DSH_HOME:-$HOME/.dsh-web}"
+  echo "WARNING: USERPROFILE is not exported, so DSH_HOME defaulted to $DSH_HOME" >&2
+  echo "         — Windows Node resolves that POSIX path against the current drive." >&2
+  echo "         Launch from Git Bash, or export DSH_HOME explicitly." >&2
 fi
 
 # pnpm 11 auto-installs before every script (`verify-deps-before-run` default

@@ -21,8 +21,10 @@
 #     answer, a detached (no-stdin) pnpm hangs on that prompt forever and
 #     the port never opens.
 #   - `--no-open` suppresses the automatic browser launch (background start).
-#   - `DSH_HOME` defaults to the DSH home dir (~/.dsh) so plugin diagnostic
-#     markers (e.g. thinking-effort-loaded.json) land there, not the repo.
+#   - `DSH_HOME` defaults to ~/.dsh-web (NOT ~/.dsh) so plugin diagnostic markers
+#     (e.g. thinking-effort-loaded.json) land there, not the repo, and so this web
+#     server never shares a session store with the desktop app. See the DSH_HOME
+#     block below for why the two homes are kept apart.
 set -u
 
 PORT="${PORT:-3080}"
@@ -32,15 +34,31 @@ BIND_HOST="${BIND_HOST:-127.0.0.1}"
 # Override with WAIT=<seconds> for genuinely slow machines (cold pnpm install, etc.).
 WAIT_SECS="${WAIT:-10}"
 
-# DSH_HOME defaults to the DSH home dir so plugins that write diagnostic
-# markers (e.g. @hytime/dsh-thinking-effort -> thinking-effort-loaded.json)
-# write there instead of the process cwd (repo root).
-# Windows Git Bash: $USERPROFILE is the native Windows path (Node-safe);
-# Linux: $HOME.
+# DSH_HOME defaults to ~/.dsh-web, a home OWNED BY THE WEB SERVER.
+#
+# Why not ~/.dsh (2026-09-30): the installed desktop app keeps using ~/.dsh. A
+# session directory is guarded by a cross-process write lease (single writer,
+# enforced by the kernel — see packages/session/session-persistence-jsonl/
+# src/lease.ts), so when both hosts share one home the second one is refused
+# with `session/writer-held`, which the client renders as "当前会话已被占用…".
+# A dsh web instance takes that lease on every session it restores, including
+# the session the desktop currently has open — this web server therefore gets
+# its own home and cannot touch the desktop's sessions.
+#
+# Override to re-share the desktop home: DSH_HOME=~/.dsh bash harness-server.sh
+#
+# Git Bash exports $USERPROFILE (a native Windows path, Node-safe). A shell that
+# does not export it — WSL bash, where $HOME is /home/<user> — cannot be fixed
+# up from inside: cmd.exe interop inherits the very environment that lacks the
+# variable. So that case says so loudly instead of handing the Windows Node a
+# POSIX path it would resolve against the current drive.
 if [ -n "${USERPROFILE:-}" ]; then
-  export DSH_HOME="${DSH_HOME:-$USERPROFILE/.dsh}"
+  export DSH_HOME="${DSH_HOME:-$USERPROFILE/.dsh-web}"
 else
-  export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
+  export DSH_HOME="${DSH_HOME:-$HOME/.dsh-web}"
+  echo "WARNING: USERPROFILE is not exported, so DSH_HOME defaulted to $DSH_HOME" >&2
+  echo "         — Windows Node resolves that POSIX path against the current drive." >&2
+  echo "         Launch from Git Bash, or export DSH_HOME explicitly." >&2
 fi
 
 # pnpm 11 runs `pnpm install` before every script (`verify-deps-before-run`

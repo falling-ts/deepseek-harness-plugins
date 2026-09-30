@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Test stub: stands in for the real pnpm so the launcher scripts can be checked
+# end to end (exported DSH_HOME, argv) without starting a server.
+echo "STUB pnpm: DSH_HOME=$DSH_HOME"
+echo "STUB pnpm: argv=$*"
+exit 0
