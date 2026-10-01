@@ -14,3 +14,7 @@ QQ*.png
 # A stray DSH_HOME that a dev instance created in the workspace root (profiles,
 # sessions, credentials). Runtime state, never shared.
 .dsh-home/
+
+# cmd-menu-probe.mjs dumps the whole rendered body for eyeballing; the PNG next
+# to it is the artifact worth keeping.
+exploration/cmd-menu-*.html

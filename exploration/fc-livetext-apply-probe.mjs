@@ -73,6 +73,9 @@ const React = { createElement: () => ({}), useState: () => [undefined, () => {}]
 const requireStub = (id) => {
   if (id === 'react') return React
   if (id === '@deepseek-ai/dsh-client-store') return { createSnapshotStore: (init) => ({ update: (f) => f(init), getSnapshot: () => init }) }
+  // The slash-menu row face (see fc-command-face-probe.mjs) reads the official
+  // icon set; this probe only needs the module to resolve.
+  if (id === '@deepseek-ai/dsh-client-ui-primitives') return { IconCompactOutlineRegular: function IconCompactOutlineRegular() {} }
   throw new Error(`unexpected require("${id}")`)
 }
 new Function(SRC)()
@@ -86,6 +89,10 @@ let onSnapshot = () => {}
 const effects = []
 const ctx = {
   effect: (body, label) => { effects.push({ label, dispose: body() }) },
+  // No command directory in this stub: `get` reports every service absent, so
+  // the command-row face (see fc-command-face-probe.mjs) installs nothing.
+  get: () => undefined,
+  inject: (_deps, callback) => { callback(ctx); return () => {} },
   locale: {
     bind: () => (key) => (key === 'badgeWorking13' ? '正在翻阅《天机》' : key),
     register: () => () => {},

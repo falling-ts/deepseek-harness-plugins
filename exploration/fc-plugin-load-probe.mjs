@@ -43,6 +43,43 @@ console.log('— dsh-force-compact —')
   for (const name of want) check(`registered ${name}`, ctx.listeners.includes(name))
 }
 
+// ── dsh-force-compact: the deferred /force-compact registration ─────────────
+// The registration is deferred to the first guarded listener, so this scenario
+// mounts a `commands` service and then invokes `agent/request` once — the same
+// path the real host takes. It pins the official-parity registration fields
+// (identity + one-line copy) the slash-menu row face is built on.
+console.log('— dsh-force-compact: /force-compact registration —')
+{
+  const mod = await import(new URL('dsh-force-compact/index.js', ROOT))
+  const captured = []
+  const listeners = new Map()
+  const ctx = {
+    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+    get: (name) => (name === 'commands'
+      ? { register: (definition) => { captured.push(definition); return () => {} } }
+      : undefined),
+    on: (name, fn) => { listeners.set(name, fn) },
+    effect: () => {},
+  }
+  let threw
+  try { mod.apply(ctx) } catch (e) { threw = e }
+  check('apply does not throw with commands mounted', threw === undefined, threw && threw.message)
+  const requestListener = listeners.get('agent/request')
+  check('agent/request listener registered', typeof requestListener === 'function')
+  if (typeof requestListener === 'function') {
+    try { await requestListener({}, async () => ({})) } catch (e) { check('agent/request listener does not throw', false, e && e.message) }
+  }
+  const definition = captured[0]
+  check('the command registered exactly once', captured.length === 1, `captured=${captured.length}`)
+  check('name is force-compact', definition?.name === 'force-compact', String(definition?.name))
+  check('definitionId is plugin-owned',
+    definition?.definitionId === '@falling-ts/dsh-force-compact', String(definition?.definitionId))
+  check('description is the one-line official-style copy',
+    definition?.description === 'Force-compact this session context now', String(definition?.description))
+  check('recordInput is false', definition?.recordInput === false, String(definition?.recordInput))
+  check('handler is a function', typeof definition?.handler === 'function')
+}
+
 // ── dsh-web-ding ───────────────────────────────────────────────────────────
 console.log('— dsh-web-ding —')
 {

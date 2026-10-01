@@ -238,18 +238,29 @@ rc.2 上**确实变了**、且直接命中 `dsh-force-compact` 的两处（细�
 文件路径。但它叠加的是**配置层**、不安装包：被叠加文件若按**包名**引用插件，该包仍须先
 装进 profile。
 
-验证（全部退出码 0，2026-09-30）：`node exploration/plugin-manifest-check.mjs`（严格
-`JSON.parse` + peer 字面量）、`peer-range-probe.mjs`（123 项：范围 / 同列车 / 边界语义）、
-`theme-token-probe.mjs`（31）、`i18n-parity-probe.mjs`（51）、`fc-bracket-order-probe.mjs`（8）、
-`fc-plugin-load-probe.mjs`、`fc-summary-effort-probe.mjs`（19）、
+验证（全部退出码 0，2026-09-30；2026-10-01 增补指令行外观三支）：`node exploration/plugin-manifest-check.mjs`
+（严格 `JSON.parse` + peer 字面量）、`peer-range-probe.mjs`（123 项：范围 / 同列车 / 边界语义）、
+`theme-token-probe.mjs`（46）、`i18n-parity-probe.mjs`（74）、`fc-bracket-order-probe.mjs`（8）、
+`fc-plugin-load-probe.mjs`（含 `/force-compact` 注册对象一段）、`fc-summary-effort-probe.mjs`（19）、
 `fc-shadow-price-parity-probe.mjs`（38）、`fc-livetext-prefix-probe.mjs`（24）、
-`fc-livetext-apply-probe.mjs`（12）、`fc-release-artifact-check.mjs dsh-force-compact`。
+`fc-livetext-apply-probe.mjs`（12）、`fc-command-face-probe.mjs`（39）、
+`fc-command-menu-probe.mjs <port>`（14，真浏览器）、`fc-release-artifact-check.mjs dsh-force-compact`。
 端到端（3080 web 实例，`DSH_HOME=~/.dsh-web`）：三个插件在 `pluginInventory/list` 里均为
 `enabled:true` / `fiberPhase:active`，`settings/describe` 出现 `falling-ts-force-compact` 与
 `falling-ts-web-ding` 两个命名空间，`dsh-local-no-auth` 免 token 生效（`/` 与 `/api/*` 均 200）；
 `fc-livetext-e2e-probe.mjs 3080`（17 项：对运行中实例经真实 host RPC 推 `liveUi`，走完
 broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle 清空；截图
-`exploration/fc-livetext-e2e{,-before}.png`）。
+`exploration/fc-livetext-e2e{,-before}.png`）。`fc-command-menu-probe.mjs` 在**本机 3080**与
+**线上服务器**（经 `dsh-ssh-helper/tunnel.mjs` 把远端 3080 映射到本地 13080）各跑一次均全绿——
+两处 `/` 菜单里那一行都渲染成「强制压缩 force-compact 立即强制压缩本会话上下文」+ 图标。
+
+**指令行的官方外观（2026-10-01）**：`/` 菜单里官方一等公民命令（压缩 / 权限 / 模型 / 下载日志）
+带图标 + 中文名 + 本地化描述，而第三方宿主命令此前只有裸名字 + 英文描述。原因是外观表**硬编码**
+在客户端 `@deepseek-ai/dsh-client-ui-commands` 的 `presentation.ts`（`HOST_FACES` 六个
+`definitionId`），0.2.0-rc.2 没有给第三方留缝（自有贡献同名即冲突、`decorate` 不换行外观）。
+`dsh-force-compact` 0.8.0 的补齐方式（宿主侧声明自己的 `definitionId` + 客户端在
+`commandUi.candidates` 出口给自己那一行贴 label/description/icon）与它的降级路径见该插件
+`AGENTS.md` 的「指令行的官方外观」一节。
 
 ### 官方插件规范符合性评审（2026-09-30）
 
@@ -424,6 +435,17 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
   0.2.0 源码里已不存在（全仓 grep 无此键），真正干活的机制是上面的 HMR 监视器。
 - 反过来说：**插件源码**（`index.js` / `web/`）的改动本来就不需要重装——profile 里是
   `link:` 软链，直接指到仓库工作树；只有**清单/补丁层**的变化才走上面这条热重载。
+
+**客户端 bundle 的 `rev` 跟着文件走（2026-10-01 实测，含 npm 安装的包）**：改完
+`web/client.js` **不需要重启实例**，页面刷新即取到新字节。判据（3080 与线上服务器各测一次）：
+① 给 `web/client.js` 末尾追加一行注释 → 再 `GET /` 拿到的模块表里该行 `rev` **当场变了**
+（`30389a7a736b` → `c59cc525ae8e`），用旧 rev 取 bundle 变成 **404**（"mismatched revisions are
+rejected instead of serving newer bytes"）；② 用新 rev 取到的字节里**含有那行标记**；③ 删掉标记
+后 rev 再变一次、字节里的标记消失。机制在 `packages/client/hmr`（`fs.watchFile` 轮询 +
+`ctx.clientModules.rebuilt(id)`，见 `packages/client/modules/src/index.ts` 的 `artifactRevision`
+按**文件元数据**算 rev）——它**不是 dev-only**：用 `harness-server.sh` 起的 3080 与线上
+`pnpm dsh web --no-open` 实例都如此。所以"客户端半部的改动要重启才生效"是**错的**；
+只有**清单内容**（exports/icon/locale 的解析表）才是启动期快照（见上文规范符合性一节）。
 
 **装到哪个 home 是常见坑**：`dsh web` 的 profile 目录是 `$DSH_HOME/profiles/web`。
 两个 host 各有一个 home（见上文 `harness-server.sh` 节的两行表）：
