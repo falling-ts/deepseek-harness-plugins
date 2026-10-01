@@ -284,6 +284,19 @@ broadcast → mirror → derive → 贴皮链，并回放每秒重写与 idle �
   DOM 锚点（`data-question-key` / `data-chat-running`）；回合结束仍以 `agent/status` 的 idle 转变为
   判据（是监听事件、非轮询）；peer 只声明 `peerDependencies`；`--fcts-*` 浅色分支保留字面值。
   逐条理由与风险登记在那份文档里。
+- **有意保留的偏离（2026-10-01 增补）**：`dsh-force-compact` / `dsh-web-ding` /
+  `dsh-start-command` 三个分区的**设置导航图标**是 DOM 贴面。原因是外壳
+  `ui-settings-general` 的 `navIcon(id)` 是**按 section id 硬编码**的闭合表，而 `settings.section`
+  的注册选项只有 `id`/`order`/`label`（`SettingsSectionRow` 没有 icon 字段），第三方分区拿不到图标位
+  ——工作区 pin 的源码与桌面版 `app.asar` 里打包的客户端同源，是同一份映射。三者照抄生态通行解法
+  （`dshmarket` 的 `settings-nav-icon`，其注释点名 `dsh-better-sidebar`、`dsh-skill-mcp-panel` 同法）：
+  对话框挂载后按**本地化 label 文本**认领自己那一行，加一个属性 + 注入一张 `<style>`，用 `mask-image`
+  画标记并隐藏兜底齿轮。**因此确实触碰了上面那条"不写自己组件之外的 DOM"红线**，但只加属性、不删不换
+  React 节点，空标签不认领任何行，属性与样式表都由 `ctx.effect` 归还，观察器只在 React 改写导航时
+  回调；mask 模板纯 alpha、不命名颜色（全 `currentColor`），不进 `--fcts-*` 色表。上游一旦给
+  `settings.section` 加上 `icon` 字段即删除。活体验证 `exploration/fc-settings-nav-icon-live-probe.mjs
+  3080`（29 项：认领 / 未误标官方行 / 齿轮确被隐藏 / 把 mask 当图片解码数不透明像素，以证明
+  `currentColor` 模板真的会绘制）。
 
 门禁已同步扩强：`exploration/plugin-manifest-check.mjs` 现在同时校验 locale 键集、文案长度上限、
 `icon` 存在与体积、`exports`/`files` 覆盖（做过反向验证：移走 `locale/zh.json` 即红）；新增
