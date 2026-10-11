@@ -88,6 +88,7 @@
 | `dsh-local-no-auth/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-local-no-auth`，纯 Host、无客户端半部） | `git@github.com:falling-ts/dsh-local-no-auth.git`（branch `main`） |
 | `dsh-web-ding/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-web-ding`，Host + 浏览器 client 两半） | `git@github.com:falling-ts/dsh-web-ding.git`（branch `main`） |
 | `dsh-start-command/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-start-command`，Host + 浏览器 client 两半；挂在 `agent/pre-step` 上执行"开始前命令"） | `git@github.com:falling-ts/dsh-start-command.git`（branch `main`） |
+| `dsh-chinese/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-chinese`，纯 Host、无客户端半部；在系统提示词里追加"中文输出"与"编辑必须用编辑工具"两条规则） | `git@github.com:falling-ts/dsh-chinese.git`（branch `main`） |
 | `awesome-dsh-plugin/` | 子模块（社区目录 fork：`data/plugins/*.yml` + 重新生成的双语 README） | `git@github.com:falling-ts/awesome-dsh-plugin.git`（fork，branch `main`） |
 | `docs/` | 工作区级技术文档（后端接口目录、上下文管理/会话结构分析、llama.cpp 适配方案、**插件规范符合性评审**等） | — |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
@@ -163,6 +164,11 @@ tag `dsh-v0.2.0-rc.1` 对应的版本列车：`@deepseek-ai/cordis: ">=4.0.4"`�
   `settings.configure`）、`dsh-agent`（`agent/pre-step` 载荷契约与 `ctx.agents` 注册表）、
   `dsh-shell`（`ctx.shell.resolve/execute`）、`dsh-sandbox-policy`（按会话解析沙箱策略）、
   `schemastery`（Config schema）+ 客户端三个同上
+- `dsh-chinese`（2026-10-01 新增，同一基线，**纯 Host 无客户端半部**）：
+  `dsh-system-prompt`（`ctx.systemPrompt.section` / `getSectionOrder`，本插件唯一的挂载缝）、
+  `dsh-settings`（Config 表单 + `settings.configure`）、`schemastery`（Config schema）。
+  它是集合里**唯一走官方文档化扩展点、不做任何运行期替换**的插件：两段规则经
+  `ctx.systemPrompt.section()` 贡献，不碰上游源码也不包裹任何实例方法。
 
 为什么 0.1.7 及以前必须排除（不是洁癖，是硬依赖）：
 
@@ -244,7 +250,9 @@ rc.2 上**确实变了**、且直接命中 `dsh-force-compact` 的两处（细�
 `fc-plugin-load-probe.mjs`（含 `/force-compact` 注册对象一段）、`fc-summary-effort-probe.mjs`（19）、
 `fc-shadow-price-parity-probe.mjs`（38）、`fc-livetext-prefix-probe.mjs`（24）、
 `fc-livetext-apply-probe.mjs`（12）、`fc-command-face-probe.mjs`（39）、
-`fc-command-menu-probe.mjs <port>`（14，真浏览器）、`fc-release-artifact-check.mjs dsh-force-compact`。
+`fc-command-menu-probe.mjs <port>`（14，真浏览器）、`fc-release-artifact-check.mjs dsh-force-compact`、
+`sc-prestep-probe.mjs`（75）、`sc-e2e-probe.mjs 3080`（17）、`sc-settings-ui-probe.mjs 3080`（7）、
+`sc-live-verify.mjs 3080`、`ch-prompt-probe.mjs`（78，离线）、`ch-live-probe.mjs 3080`（15，活体）。
 端到端（3080 web 实例，`DSH_HOME=~/.dsh-web`）：三个插件在 `pluginInventory/list` 里均为
 `enabled:true` / `fiberPhase:active`，`settings/describe` 出现 `falling-ts-force-compact` 与
 `falling-ts-web-ding` 两个命名空间，`dsh-local-no-auth` 免 token 生效（`/` 与 `/api/*` 均 200）；
@@ -584,7 +592,53 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
 这与上一节"装插件不必重启"**不矛盾**：那条讲**激活**（包名进补丁层即可热装载），本条讲
 **清单内容**（exports 表在这条路径上是进程级快照）。
 
-## 电脑操作能力（computer use）—— 2026-09-17 在本工作区启用并实测
+## 系统提示词规则注入（`dsh-chinese`）—— 2026-10-01 新增并实测
+
+第四个自研插件，也是集合里**唯一走官方文档化扩展点、不做任何运行期替换**的一个：
+经 `ctx.systemPrompt.section()`（`packages/core/system-prompt/src/index.ts`）向每次请求的
+系统提示词贡献两段固定中文规则——① 所有思考与临时输出必须用中文（代码、标识符、路径、
+命令、配置键、API 名、符号保持原样）；② 编辑文件必须用编辑文件工具，命令与脚本只能用于
+**检验**，检验出错仍须回到编辑工具修正。
+
+**为什么它是纯 Host 插件**：规则改变的是**模型读到什么**，不是界面显示什么。因此没有
+`web/client.js`、没有 `dsh.client` 声明、没有 `./client` 导出，也因此**不在**
+`i18n-parity-probe.mjs` / `theme-token-probe.mjs` 的覆盖范围内（那两个门禁的对象是各插件的
+客户端半部）；它的语言面只有 `locale/{en,zh}.json` 的 `meta`，由 `plugin-manifest-check.mjs` 守住。
+
+四条实现要点（改动前必读）：
+
+- **文本必须是 provider（函数）而非静态字符串**。`PromptSection.text` 允许
+  `string | (ctx) => string`，provider 在**每次装配**时求值。用静态字符串的话段落会在加载时
+  冻结，改开关要重启才生效。
+- **关掉的规则贡献空串而不是注销段落**。上游 `renderPrompt` 丢弃空段落，所以关掉的规则零
+  token 贡献；按开关注册/注销反而需要一个 settings 订阅，且每次翻转都有半生效窗口。
+- **order 锚定 `getSectionOrder('TOOL_BASH')` + (-40)**，即两段都排在官方工具说明**之前**——
+  编辑规则约束的是 `edit`/`write` 怎么用，必须排在它们自己的说明之前。两段相差 1：order 相等
+  时上游按 code-unit 名序决胜，会把 `edit-tool` 排到 `language` 前面。
+- **规则文本固定不可配置**（`src/core/prompt-text.js` 的模块常量），只有两个布尔开关
+  （`chineseOnly` / `editToolOnly`）。把文本做成设置项只会为同一条规则制造第二个会漂移的
+  真相源。文本逐字进 `ch-prompt-probe.mjs` —— 一段被静默丢弃的规则本身不会报错。
+
+**挂载实测（3080，`DSH_HOME=~/.dsh-web`）**：`dsh plugin --profile web add <本地路径>` 装为
+`link:` 依赖后，profile HMR **进程内热装载，无需重启**——`pluginInventory/list` 立刻出现
+`include:falling-ts-chinese`（`enabled:true` / `fiberPhase:active`，本机 193 条目），
+`settings/describe` 出现 `falling-ts-chinese`（`autoGenerate:false` / `applies:'live'`）。
+
+**装它时踩到的坑（本机 pnpm 11.7.0）**：`dsh plugin add` 内部会跑 `pnpm install`，在本机报
+`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`（无 TTY 时拒绝清空 modules 目录）。
+解法是加 `CI=true` 环境变量让它自动应答（比手工"四步安装"更省事）；另外该命令必须在
+**`deepseek-harness/` 检出目录内**执行（在容器仓库根跑会报 `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`），
+且 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 在 **PowerShell 里要写成 `$env:CODEBUDDY_SAFE_DELETE_ENABLED='0'`**
+（`VAR=value cmd` 是 bash 语法，pwsh 会把它当命令名而报 CommandNotFoundException）。
+
+**活体验证判据（`exploration/ch-live-probe.mjs 3080`，15 项）**：最硬的一条是读回会话的
+`system/message` 记录（`session/page`，载荷 `{request:{address:{kind:'session',sessionId},throughSeq}}`；
+`throughSeq` 超过会话游标会报 `past cursor N`，探针据此自动探测上界），断言两段规则**逐字出现**、
+来源 `source.kind === 'system-prompt'`（证明走的是注册表装配而非别的路径）、且中文规则的位置
+**早于**官方工具说明 `Use the read tool`。实测该请求的 `system/message` 里，两段规则接在
+preamble 之后、工具说明之前，模型也能逐字复述——这是"规则真的进了模型请求"的完整证据链。
+
+
 
 profile `web` 已启用完整桌面操控：模型经 **Cua Driver 原生 SDK**（`@trycua/cua-driver@0.28.0`，
 Rust + 各平台原生二进制）观察并操作本机桌面。挂两个 entry：服务

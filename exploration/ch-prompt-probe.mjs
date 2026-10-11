@@ -1,0 +1,328 @@
+/**
+ * 探针:dsh-chinese 的提示词文本、开关语义与注册/卸载行为。
+ *
+ * 这个插件的全部行为就是"往每次请求的系统提示词里塞两段固定中文规则"。于是真正
+ * 的风险不在功能多,而在**契约**上:
+ *
+ *   - 文本是固定常量,必须逐字钉住——上游 `renderPrompt` 会丢弃空段落,所以一段被
+ *     误删/误改的规则不会报错,只会静默地不再约束模型;
+ *   - 开关必须按**每次装配**求值(provider 而非静态字符串),否则改了设置要重启才生效;
+ *   - 关掉时贡献的是空串而非"段落仍在但内容为空"以外的任何东西,即不占用 token 预算;
+ *   - 命名空间三处拼写(loader entry id / NS 常量 / 包名)必须逐字一致——不一致的表现
+ *     是**静默**读不到值,不报错;
+ *   - 注册必须走 `ctx.effect`,卸载后注册表必须干净这条 HMR 安全红线。
+ *
+ * 全程离线:真实 import 宿主半部的 `index.js` 与 `src/**`,用桩 ctx 驱动 `apply`,
+ * 再从桩注册表读回段落并按上游 `renderPrompt` 的语义渲染。不连任何实例。
+ *
+ * 用法:node exploration/ch-prompt-probe.mjs
+ */
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const PLUGIN = join(ROOT, 'dsh-chinese')
+
+const load = (rel) => import(pathToFileURL(join(PLUGIN, rel)).href)
+
+const index = await load('index.js')
+const text = await load('src/core/prompt-text.js')
+const settings = await load('src/core/settings.js')
+const sections = await load('src/hooks/sections.js')
+
+let passed = 0
+let failed = 0
+const check = (ok, label, detail = '') => {
+  if (ok) { passed++; console.log(`  ok   ${label}`) }
+  else { failed++; console.log(`  FAIL ${label}${detail ? ` — ${detail}` : ''}`) }
+}
+
+// ── 桩 ───────────────────────────────────────────────────────────────────────
+
+/**
+ * 桩 systemPrompt 注册表:按上游语义保存 name → { order, text }。
+ * `getSectionOrder` 直接回答仓库里那三档锚点(此处只用得上 TOOL_BASH)。
+ */
+function makeSystemPrompt({ orders = { TOOL_BASH: 1000 } } = {}) {
+  const registered = new Map()
+  return {
+    registered,
+    service: {
+      getSectionOrder: (name) => orders[name],
+      section: (section) => {
+        if (registered.has(section.name)) throw new Error(`prompt section "${section.name}" is already registered`)
+        if (!Number.isFinite(section.order)) throw new TypeError('order must be finite')
+        registered.set(section.name, section)
+        return () => { registered.delete(section.name) }
+      },
+    },
+  }
+}
+
+/** 桩 ctx:`services` 走 ctx.get;`inject` 立即以 child 回调;effect 收下 disposer。 */
+function makeCtx({ services = {} } = {}) {
+  const logger = { info: [], warn: [], error: [], debug: [] }
+  const effects = []
+  const injections = []
+  for (const level of Object.keys(logger)) {
+    logger[level] = []
+  }
+  const ctx = {
+    fiber: { id: 'fiber-test' },
+    logger: {
+      info: (m) => logger.info.push(m),
+      warn: (m) => logger.warn.push(m),
+      error: (m) => logger.error.push(m),
+      debug: (m) => logger.debug.push(m),
+    },
+    get: (name) => services[name],
+    effect: (fn, label) => {
+      const disposer = fn()
+      effects.push({ label, disposer })
+      return disposer
+    },
+    inject: (names, cb) => {
+      injections.push(names)
+      const child = { effect: ctx.effect, settings: services.settings }
+      cb(child)
+      return child
+    },
+    // 展开 services 到顶层,让 `inject: ['systemPrompt']` 对应的 ctx.systemPrompt 可用
+    ...services,
+  }
+  return { ctx, logger, effects, injections }
+}
+
+/**
+ * 按上游 `renderPrompt` 的语义渲染:provider 求值 → 丢弃空串 → 空行连接。
+ * 只保留这两条规则,故不涉及变量插值。
+ */
+function render(registered) {
+  return [...registered.values()]
+    .slice()
+    .sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .map((section) => (typeof section.text === 'function' ? section.text({}) : section.text))
+    .filter((line) => line.length > 0)
+    .join('\n\n')
+}
+
+/** 一次性装好插件:`apply` 拿到的是已绑定开关的 config 桩。 */
+function mount({ toggles = {}, orders } = {}) {
+  const registry = makeSystemPrompt(orders === undefined ? {} : { orders })
+  const services = { systemPrompt: registry.service }
+  const { ctx, logger, effects, injections } = makeCtx({ services })
+  const config = makeConfig(toggles)
+  settings.bindConfig(config)
+  index.apply(ctx, config)
+  return { registry, logger, effects, injections, config }
+}
+
+/** Config 桩:`[field] = { get() }`——与 schemastery 的 volatile ref 同形。 */
+function makeConfig(values) {
+  const config = {}
+  for (const key of Object.keys(settings.DEFAULTS)) {
+    config[key] = { get: () => (key in values ? values[key] : undefined) }
+  }
+  return config
+}
+
+// ── 1. 命名空间与包名一致性 ──────────────────────────────────────────────────
+console.log('\n[1] 命名空间与包名一致性')
+{
+  const manifest = JSON.parse(readFileSync(join(PLUGIN, 'package.json'), 'utf8'))
+  const patch = readFileSync(join(PLUGIN, 'cordis.patch.yml'), 'utf8')
+  check(settings.NS === 'falling-ts-chinese', `NS 常量 = falling-ts-chinese`, settings.NS)
+  check(patch.includes(`id: ${settings.NS}`), `cordis.patch.yml 的 insert[].id = ${settings.NS}`)
+  check(patch.includes(`'${manifest.name}'`), `cordis.patch.yml 按包名引用 ${manifest.name}`)
+  check(manifest.dsh?.bundle?.patch === './cordis.patch.yml', 'dsh.bundle.patch 指向 ./cordis.patch.yml')
+  check(manifest.name === '@falling-ts/dsh-chinese', '包名 = @falling-ts/dsh-chinese', manifest.name)
+  // 纯 Host 插件:不得有客户端半部或 ./client 导出。
+  check(manifest.dsh?.client === undefined, '无 dsh.client 声明(纯 Host 插件)')
+  check(manifest.exports?.['./client'] === undefined, '无 "./client" 导出')
+}
+
+// ── 2. 提示词文本逐字钉住 ────────────────────────────────────────────────────
+console.log('\n[2] 提示词文本逐字钉住')
+{
+  check(text.CHINESE_RULE_TEXT.includes('所有思考过程和临时输出都必须使用中文'),
+    '中文规则含"所有思考过程和临时输出都必须使用中文"')
+  check(/代码|符号/.test(text.CHINESE_RULE_TEXT) && text.CHINESE_RULE_TEXT.includes('不翻译、不改写'),
+    '中文规则显式豁免代码与符号(不翻译、不改写)')
+  check(text.EDIT_TOOL_RULE_TEXT.includes('必须使用专门的编辑文件工具'),
+    '编辑规则含"必须使用专门的编辑文件工具"')
+  check(text.EDIT_TOOL_RULE_TEXT.includes('禁止使用命令行或脚本'),
+    '编辑规则含"禁止使用命令行或脚本"')
+  check(/mjs/.test(text.EDIT_TOOL_RULE_TEXT) && /js/.test(text.EDIT_TOOL_RULE_TEXT) && /py/.test(text.EDIT_TOOL_RULE_TEXT),
+    '编辑规则点名 mjs / js / py 等脚本语言')
+  check(text.EDIT_TOOL_RULE_TEXT.includes('只能用于检验文件修改的结果'),
+    '编辑规则限定命令与脚本只用于检验')
+  check(text.EDIT_TOOL_RULE_TEXT.includes('必须再次使用编辑文件工具'),
+    '编辑规则要求检验出错后仍回到编辑工具修正')
+  // 段落顺序:语言规则在前,工具规则在后(provider 顺序 = 渲染顺序的前提)。
+  const both = text.buildSections({ chinese: true, editTool: true, anchorOrder: 1000 })
+  check(both.length === 2, '两条规则都开时产生 2 段', String(both.length))
+  check(both[0].name === text.CHINESE_RULE_SECTION && both[1].name === text.EDIT_TOOL_RULE_SECTION,
+    '段落顺序:语言规则在前、工具规则在后')
+  check(both[0].order < both[1].order, `段落 order 递增(${both[0].order} < ${both[1].order})`)
+  check(both[0].order === 1000 + text.SECTION_ORDER_OFFSET, 'order 锚定 TOOL_BASH + OFFSET', String(both[0].order))
+  check(both[0].order < 1000 && both[1].order < 1000, '两段都排在首个官方工具段(TOOL_BASH=1000)之前')
+  check(text.buildSections({ chinese: false, editTool: true, anchorOrder: 1000 }).length === 1,
+    '只开工具规则时产生 1 段')
+  check(text.buildSections({ chinese: true, editTool: false, anchorOrder: 1000 }).length === 1,
+    '只开语言规则时产生 1 段')
+  check(text.buildSections({ chinese: false, editTool: false, anchorOrder: 1000 }).length === 0,
+    '两条都关时不产生段落')
+}
+
+// ── 3. 默认全开与清单导出 ────────────────────────────────────────────────────
+console.log('\n[3] 默认值与静默回退')
+{
+  check(settings.DEFAULTS.chineseOnly === true, 'chineseOnly 默认 true')
+  check(settings.DEFAULTS.editToolOnly === true, 'editToolOnly 默认 true')
+  check(settings.readToggle(settings.CHINESE_FIELD, true) === true, '未绑定时 readToggle 回退到默认值')
+  // 非布尔值(字符串 'false'、数字、null)一律回退,不做强制转换。
+  settings.bindConfig({ [settings.CHINESE_FIELD]: { get: () => 'false' } })
+  check(settings.readToggle(settings.CHINESE_FIELD, true) === true, '字符串 "false" 不生效(按未设置处理)')
+  settings.bindConfig({ [settings.CHINESE_FIELD]: { get: () => false } })
+  check(settings.readToggle(settings.CHINESE_FIELD, true) === false, '真正的 false 生效')
+  settings.bindConfig(undefined)
+  check(settings.readToggle(settings.CHINESE_FIELD, true) === true, 'Config 缺席时回退到默认值')
+  check(settings.readConfigField(settings.CHINESE_FIELD) === undefined, 'Config 缺席时 readConfigField 返回 undefined')
+}
+
+// ── 4. apply 的注册行为 ──────────────────────────────────────────────────────
+console.log('\n[4] apply 的注册行为')
+{
+  const { registry, logger, effects, injections } = mount()
+  check(registry.registered.size === 2, 'apply 注册了 2 个段落', String(registry.registered.size))
+  check(registry.registered.has(text.CHINESE_RULE_SECTION), `注册了 ${text.CHINESE_RULE_SECTION}`)
+  check(registry.registered.has(text.EDIT_TOOL_RULE_SECTION), `注册了 ${text.EDIT_TOOL_RULE_SECTION}`)
+  check(effects.length === 2, '两个段落都由 ctx.effect 持有(可卸载)', String(effects.length))
+  check(effects.every((e) => typeof e.disposer === 'function'), '每个 effect 都归还了 disposer')
+  check(effects.every((e) => typeof e.label === 'string' && e.label.includes('dsh-chinese')),
+    '每个 effect 都带 dsh-chinese 标签')
+  check(injections.some((names) => Array.isArray(names) && names.includes('settings')),
+    '设置表单声明走惰性 ctx.inject(["settings"])')
+  check(logger.info.some((m) => m.includes('[dsh-chinese] active')), 'apply 打印了 active 行')
+  check(Array.isArray(index.inject) && index.inject.includes('systemPrompt'),
+    'inject 声明了 systemPrompt')
+  check(index.name === 'chinese', '插件 name = chinese', index.name)
+  check(index.default === undefined, '无 default export(函数插件约定)')
+}
+
+// ── 5. 每次装配求值开关 ──────────────────────────────────────────────────────
+console.log('\n[5] 开关按每次装配求值')
+{
+  const { registry } = mount({ toggles: { [settings.CHINESE_FIELD]: true, [settings.EDIT_TOOL_FIELD]: true } })
+  const first = render(registry.registered)
+  check(first.includes('所有思考过程和临时输出都必须使用中文'), '默认渲染含中文规则')
+  check(first.includes('必须使用专门的编辑文件工具'), '默认渲染含编辑规则')
+
+  // 同一份注册表,改设置后再次渲染即生效——无需重注册、无需重启。
+  settings.bindConfig(makeConfig({ [settings.CHINESE_FIELD]: false, [settings.EDIT_TOOL_FIELD]: true }))
+  const second = render(registry.registered)
+  check(!second.includes('所有思考过程和临时输出都必须使用中文'), '关掉中文规则后该段不再出现')
+  check(second.includes('必须使用专门的编辑文件工具'), '关掉中文规则不影响编辑规则')
+  check(registry.registered.size === 2, '改开关不改变注册表(仍 2 段)')
+
+  settings.bindConfig(makeConfig({ [settings.CHINESE_FIELD]: false, [settings.EDIT_TOOL_FIELD]: false }))
+  check(render(registry.registered) === '', '两条都关时渲染为空串(零 token 贡献)')
+
+  settings.bindConfig(makeConfig({}))
+  check(render(registry.registered).includes('所有思考过程和临时输出都必须使用中文'),
+    'Config 字段未设置时回退到默认全开')
+}
+
+// ── 6. 卸载后注册表干净(HMR 安全) ────────────────────────────────────────────
+console.log('\n[6] 卸载后注册表干净')
+{
+  const { registry, effects } = mount()
+  check(registry.registered.size === 2, '卸载前 2 段')
+  for (const effect of effects) effect.disposer()
+  check(registry.registered.size === 0, '卸载后 0 段(注册表干净)', String(registry.registered.size))
+  check(render(registry.registered) === '', '卸载后渲染为空')
+  // 重新 apply 必须能再次注册(证明上一轮没留残留导致 duplicate 抛错)。
+  settings.bindConfig(makeConfig({}))
+  const again = makeSystemPrompt({})
+  const { ctx } = makeCtx({ services: { systemPrompt: again.service } })
+  let threw
+  try {
+    index.apply(ctx, makeConfig({}))
+  } catch (error) {
+    threw = error
+  }
+  check(threw === undefined, '卸载后重新 apply 不因重复注册抛错', threw === undefined ? '' : String(threw))
+  check(again.registered.size === 2, '重新 apply 后再次注册 2 段')
+}
+
+// ── 7. 锚点回退与注册表异常面 ────────────────────────────────────────────────
+console.log('\n[7] 锚点回退与健壮性')
+{
+  // 自定义锚点被跟随(证明不是写死 1000)。
+  const custom = mount({ orders: { TOOL_BASH: 4242 } })
+  const section = custom.registry.registered.get(text.CHINESE_RULE_SECTION)
+  check(section.order === 4242 + text.SECTION_ORDER_OFFSET, '跟随注册表实际返回的 TOOL_BASH order', String(section.order))
+
+  // getSectionOrder 抛异常时回退到 1000,而不是让 apply 挂掉。
+  const throwing = {
+    getSectionOrder: () => { throw new Error('registry exploded') },
+    section: () => () => {},
+  }
+  const { ctx: ctxA } = makeCtx({ services: { systemPrompt: throwing } })
+  let threw
+  try { index.apply(ctxA, makeConfig({})) } catch (error) { threw = error }
+  check(threw === undefined, 'getSectionOrder 抛异常时 apply 不挂(回退锚点)')
+
+  // getSectionOrder 返回非有限值时同样回退。
+  const nan = { getSectionOrder: () => Number.NaN, section: () => () => {} }
+  const { ctx: ctxB } = makeCtx({ services: { systemPrompt: nan } })
+  threw = undefined
+  try { index.apply(ctxB, makeConfig({})) } catch (error) { threw = error }
+  check(threw === undefined, 'getSectionOrder 返回 NaN 时 apply 不挂')
+
+  // settings 服务缺席时,表单声明被吞成 warn,段落注册照旧。
+  const registry = makeSystemPrompt({})
+  const { ctx, logger } = makeCtx({ services: { systemPrompt: registry.service } })
+  ctx.inject = () => { throw new Error('settings unavailable') }
+  threw = undefined
+  try { index.apply(ctx, makeConfig({})) } catch (error) { threw = error }
+  check(threw === undefined, 'settings 缺席时 apply 仍成功')
+  check(registry.registered.size === 2, 'settings 缺席不影响段落注册')
+  check(logger.warn.some((m) => m.includes('[dsh-chinese] settings.configure')), 'settings 缺席时记一条 warn')
+}
+
+// ── 8. 清单与显示元数据 ──────────────────────────────────────────────────────
+console.log('\n[8] 清单与显示元数据')
+{
+  const manifest = JSON.parse(readFileSync(join(PLUGIN, 'package.json'), 'utf8'))
+  const files = Array.isArray(manifest.files) ? manifest.files : []
+  for (const entry of ['index.js', 'src/', 'cordis.patch.yml', 'locale/*.json', 'icon.svg']) {
+    check(files.includes(entry), `files 覆盖 "${entry}"`)
+  }
+  check(manifest.exports?.['./locale/*.json'] === './locale/*.json', 'exports 发布 ./locale/*.json')
+  check(manifest.exports?.['./package.json'] === './package.json', 'exports 发布 ./package.json')
+  check(manifest.icon === './icon.svg', 'icon 是相对路径 SVG', String(manifest.icon))
+  for (const language of ['en', 'zh']) {
+    const dict = JSON.parse(readFileSync(join(PLUGIN, 'locale', `${language}.json`), 'utf8'))
+    check(typeof dict?.meta?.title === 'string' && dict.meta.title.length <= 40,
+      `locale/${language}.json meta.title 非空且 ≤40 字`)
+    check(typeof dict?.meta?.description === 'string' && dict.meta.description.length <= 240,
+      `locale/${language}.json meta.description 非空且 ≤240 字`)
+  }
+  const peers = manifest.peerDependencies ?? {}
+  const meta = manifest.peerDependenciesMeta ?? {}
+  check(peers['@deepseek-ai/cordis'] === '>=4.0.4', 'cordis peer = >=4.0.4')
+  check(peers['@deepseek-ai/schemastery'] === '>=3.18.4', 'schemastery peer = >=3.18.4')
+  check(peers['@deepseek-ai/dsh-system-prompt'] === '>=0.2.0-rc.1', 'system-prompt peer = >=0.2.0-rc.1')
+  check(peers['@deepseek-ai/dsh-settings'] === '>=0.2.0-rc.1', 'settings peer = >=0.2.0-rc.1')
+  check(meta['@deepseek-ai/cordis']?.optional !== true, 'cordis 是 required peer')
+  for (const name of ['@deepseek-ai/schemastery', '@deepseek-ai/dsh-system-prompt', '@deepseek-ai/dsh-settings']) {
+    check(meta[name]?.optional === true, `${name} 是 optional peer`)
+  }
+}
+
+console.log('')
+if (failed === 0) console.log(`全部 ${passed} 项通过:dsh-chinese 提示词文本 / 开关语义 / 注册与卸载`)
+else console.log(`${failed} 项失败(通过 ${passed})`)
+process.exit(failed === 0 ? 0 : 1)

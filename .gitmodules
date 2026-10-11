@@ -21,3 +21,7 @@
 	path = dsh-start-command
 	url = git@github.com:falling-ts/dsh-start-command.git
 	branch = main
+[submodule "dsh-chinese"]
+	path = dsh-chinese
+	url = git@github.com:falling-ts/dsh-chinese.git
+	branch = main
