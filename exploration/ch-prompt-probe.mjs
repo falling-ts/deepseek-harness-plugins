@@ -1,7 +1,7 @@
 /**
  * 探针:dsh-chinese 的提示词文本、开关语义与注册/卸载行为。
  *
- * 这个插件的全部行为就是"往每次请求的系统提示词里塞两段固定中文规则"。于是真正
+ * 这个插件的全部行为就是"往每次请求的系统提示词里塞三段固定中文规则"。于是真正
  * 的风险不在功能多,而在**契约**上:
  *
  *   - 文本是固定常量,必须逐字钉住——上游 `renderPrompt` 会丢弃空段落,所以一段被
@@ -159,20 +159,42 @@ console.log('\n[2] 提示词文本逐字钉住')
     '编辑规则限定命令与脚本只用于检验')
   check(text.EDIT_TOOL_RULE_TEXT.includes('必须再次使用编辑文件工具'),
     '编辑规则要求检验出错后仍回到编辑工具修正')
-  // 段落顺序:语言规则在前,工具规则在后(provider 顺序 = 渲染顺序的前提)。
-  const both = text.buildSections({ chinese: true, editTool: true, anchorOrder: 1000 })
-  check(both.length === 2, '两条规则都开时产生 2 段', String(both.length))
-  check(both[0].name === text.CHINESE_RULE_SECTION && both[1].name === text.EDIT_TOOL_RULE_SECTION,
-    '段落顺序:语言规则在前、工具规则在后')
-  check(both[0].order < both[1].order, `段落 order 递增(${both[0].order} < ${both[1].order})`)
-  check(both[0].order === 1000 + text.SECTION_ORDER_OFFSET, 'order 锚定 TOOL_BASH + OFFSET', String(both[0].order))
-  check(both[0].order < 1000 && both[1].order < 1000, '两段都排在首个官方工具段(TOOL_BASH=1000)之前')
-  check(text.buildSections({ chinese: false, editTool: true, anchorOrder: 1000 }).length === 1,
-    '只开工具规则时产生 1 段')
-  check(text.buildSections({ chinese: true, editTool: false, anchorOrder: 1000 }).length === 1,
+  check(text.INLINE_SCRIPT_RULE_TEXT.includes('优先直接内联执行'),
+    '内联规则含"优先直接内联执行"')
+  check(text.INLINE_SCRIPT_RULE_TEXT.includes('不要先创建临时文件'),
+    '内联规则要求不要先创建临时文件')
+  check(text.INLINE_SCRIPT_RULE_TEXT.includes('污染项目'),
+    '内联规则点名"污染项目"这一动机')
+  check(/python3/.test(text.INLINE_SCRIPT_RULE_TEXT) && /node/.test(text.INLINE_SCRIPT_RULE_TEXT),
+    '内联规则给出 python3 与 node 两种执行方式')
+  check(/heredoc|here-document|<<|--input-type=module|-e/.test(text.INLINE_SCRIPT_RULE_TEXT),
+    '内联规则给出多行代码的传法(here-document / -e)')
+  check(text.INLINE_SCRIPT_RULE_TEXT.includes('长期留存') && text.INLINE_SCRIPT_RULE_TEXT.includes('写入仓库文件'),
+    '内联规则保留"需要长期留存时才写文件"的出口')
+  // 段落顺序:语言规则在前,工具规则居中,内联规则在最后(工具规则的细化)。
+  const all = text.buildSections({ chinese: true, editTool: true, inlineScript: true, anchorOrder: 1000 })
+  check(all.length === 3, '三条规则都开时产生 3 段', String(all.length))
+  check(all[0].name === text.CHINESE_RULE_SECTION
+    && all[1].name === text.EDIT_TOOL_RULE_SECTION
+    && all[2].name === text.INLINE_SCRIPT_RULE_SECTION,
+    '段落顺序:语言 → 编辑工具 → 内联执行')
+  check(all[0].order < all[1].order && all[1].order < all[2].order,
+    `三段 order 严格递增(${all[0].order} < ${all[1].order} < ${all[2].order})`)
+  check(all[0].order === 1000 + text.SECTION_ORDER_OFFSET, 'order 锚定 TOOL_BASH + OFFSET', String(all[0].order))
+  check(all.every((s) => s.order < 1000), '三段都排在首个官方工具段(TOOL_BASH=1000)之前')
+  const both = text.buildSections({ chinese: true, editTool: true, inlineScript: false, anchorOrder: 1000 })
+  check(both.length === 2, '只关内联规则时产生 2 段', String(both.length))
+  check(both[0].order < both[1].order, `两段 order 递增(${both[0].order} < ${both[1].order})`)
+  check(text.buildSections({ chinese: false, editTool: true, inlineScript: true, anchorOrder: 1000 }).length === 2,
+    '只关语言规则时产生 2 段')
+  check(text.buildSections({ chinese: true, editTool: false, inlineScript: false, anchorOrder: 1000 }).length === 1,
     '只开语言规则时产生 1 段')
-  check(text.buildSections({ chinese: false, editTool: false, anchorOrder: 1000 }).length === 0,
-    '两条都关时不产生段落')
+  check(text.buildSections({ chinese: false, editTool: false, inlineScript: false, anchorOrder: 1000 }).length === 0,
+    '三条都关时不产生段落')
+  // 关掉中间那段的 order 不留空洞:剩下两段仍严格递增且从锚点起算。
+  const gap = text.buildSections({ chinese: true, editTool: false, inlineScript: true, anchorOrder: 1000 })
+  check(gap.length === 2 && gap[0].order === 1000 + text.SECTION_ORDER_OFFSET && gap[1].order === gap[0].order + 1,
+    '关掉中间规则后 order 仍连续(不留空洞)', gap.map((s) => s.order).join(','))
 }
 
 // ── 3. 默认全开与清单导出 ────────────────────────────────────────────────────
@@ -180,6 +202,10 @@ console.log('\n[3] 默认值与静默回退')
 {
   check(settings.DEFAULTS.chineseOnly === true, 'chineseOnly 默认 true')
   check(settings.DEFAULTS.editToolOnly === true, 'editToolOnly 默认 true')
+  check(settings.DEFAULTS.inlineScriptOnly === true, 'inlineScriptOnly 默认 true')
+  check(Object.keys(settings.DEFAULTS).length === 3, 'DEFAULTS 恰好 3 个开关', String(Object.keys(settings.DEFAULTS).length))
+  check(settings.INLINE_SCRIPT_FIELD === 'inlineScriptOnly',
+    'INLINE_SCRIPT_FIELD 常量 = inlineScriptOnly', settings.INLINE_SCRIPT_FIELD)
   check(settings.readToggle(settings.CHINESE_FIELD, true) === true, '未绑定时 readToggle 回退到默认值')
   // 非布尔值(字符串 'false'、数字、null)一律回退,不做强制转换。
   settings.bindConfig({ [settings.CHINESE_FIELD]: { get: () => 'false' } })
@@ -195,10 +221,11 @@ console.log('\n[3] 默认值与静默回退')
 console.log('\n[4] apply 的注册行为')
 {
   const { registry, logger, effects, injections } = mount()
-  check(registry.registered.size === 2, 'apply 注册了 2 个段落', String(registry.registered.size))
+  check(registry.registered.size === 3, 'apply 注册了 3 个段落', String(registry.registered.size))
   check(registry.registered.has(text.CHINESE_RULE_SECTION), `注册了 ${text.CHINESE_RULE_SECTION}`)
   check(registry.registered.has(text.EDIT_TOOL_RULE_SECTION), `注册了 ${text.EDIT_TOOL_RULE_SECTION}`)
-  check(effects.length === 2, '两个段落都由 ctx.effect 持有(可卸载)', String(effects.length))
+  check(registry.registered.has(text.INLINE_SCRIPT_RULE_SECTION), `注册了 ${text.INLINE_SCRIPT_RULE_SECTION}`)
+  check(effects.length === 3, '三个段落都由 ctx.effect 持有(可卸载)', String(effects.length))
   check(effects.every((e) => typeof e.disposer === 'function'), '每个 effect 都归还了 disposer')
   check(effects.every((e) => typeof e.label === 'string' && e.label.includes('dsh-chinese')),
     '每个 effect 都带 dsh-chinese 标签')
@@ -214,20 +241,44 @@ console.log('\n[4] apply 的注册行为')
 // ── 5. 每次装配求值开关 ──────────────────────────────────────────────────────
 console.log('\n[5] 开关按每次装配求值')
 {
-  const { registry } = mount({ toggles: { [settings.CHINESE_FIELD]: true, [settings.EDIT_TOOL_FIELD]: true } })
+  const ALL_ON = {
+    [settings.CHINESE_FIELD]: true,
+    [settings.EDIT_TOOL_FIELD]: true,
+    [settings.INLINE_SCRIPT_FIELD]: true,
+  }
+  const { registry } = mount({ toggles: ALL_ON })
   const first = render(registry.registered)
   check(first.includes('所有思考过程和临时输出都必须使用中文'), '默认渲染含中文规则')
   check(first.includes('必须使用专门的编辑文件工具'), '默认渲染含编辑规则')
+  check(first.includes('优先直接内联执行'), '默认渲染含内联执行规则')
 
   // 同一份注册表,改设置后再次渲染即生效——无需重注册、无需重启。
-  settings.bindConfig(makeConfig({ [settings.CHINESE_FIELD]: false, [settings.EDIT_TOOL_FIELD]: true }))
+  settings.bindConfig(makeConfig({ ...ALL_ON, [settings.CHINESE_FIELD]: false }))
   const second = render(registry.registered)
   check(!second.includes('所有思考过程和临时输出都必须使用中文'), '关掉中文规则后该段不再出现')
   check(second.includes('必须使用专门的编辑文件工具'), '关掉中文规则不影响编辑规则')
-  check(registry.registered.size === 2, '改开关不改变注册表(仍 2 段)')
+  check(second.includes('优先直接内联执行'), '关掉中文规则不影响内联规则')
+  check(registry.registered.size === 3, '改开关不改变注册表(仍 3 段)')
 
-  settings.bindConfig(makeConfig({ [settings.CHINESE_FIELD]: false, [settings.EDIT_TOOL_FIELD]: false }))
-  check(render(registry.registered) === '', '两条都关时渲染为空串(零 token 贡献)')
+  // 三个开关彼此独立:只关内联规则时,另两段必须照旧。
+  settings.bindConfig(makeConfig({ ...ALL_ON, [settings.INLINE_SCRIPT_FIELD]: false }))
+  const third = render(registry.registered)
+  check(!third.includes('优先直接内联执行'), '单独关掉内联规则后该段不再出现')
+  check(third.includes('所有思考过程和临时输出都必须使用中文'), '关掉内联规则不影响中文规则')
+  check(third.includes('必须使用专门的编辑文件工具'), '关掉内联规则不影响编辑规则')
+
+  // 只关编辑规则:内联规则段必须仍由自己的开关管着,不能被连坐。
+  settings.bindConfig(makeConfig({ ...ALL_ON, [settings.EDIT_TOOL_FIELD]: false }))
+  const fourth = render(registry.registered)
+  check(!fourth.includes('必须使用专门的编辑文件工具'), '单独关掉编辑规则后该段不再出现')
+  check(fourth.includes('优先直接内联执行'), '关掉编辑规则不影响内联规则(不被连坐)')
+
+  settings.bindConfig(makeConfig({
+    [settings.CHINESE_FIELD]: false,
+    [settings.EDIT_TOOL_FIELD]: false,
+    [settings.INLINE_SCRIPT_FIELD]: false,
+  }))
+  check(render(registry.registered) === '', '三条都关时渲染为空串(零 token 贡献)')
 
   settings.bindConfig(makeConfig({}))
   check(render(registry.registered).includes('所有思考过程和临时输出都必须使用中文'),
@@ -238,7 +289,7 @@ console.log('\n[5] 开关按每次装配求值')
 console.log('\n[6] 卸载后注册表干净')
 {
   const { registry, effects } = mount()
-  check(registry.registered.size === 2, '卸载前 2 段')
+  check(registry.registered.size === 3, '卸载前 3 段')
   for (const effect of effects) effect.disposer()
   check(registry.registered.size === 0, '卸载后 0 段(注册表干净)', String(registry.registered.size))
   check(render(registry.registered) === '', '卸载后渲染为空')
@@ -253,7 +304,7 @@ console.log('\n[6] 卸载后注册表干净')
     threw = error
   }
   check(threw === undefined, '卸载后重新 apply 不因重复注册抛错', threw === undefined ? '' : String(threw))
-  check(again.registered.size === 2, '重新 apply 后再次注册 2 段')
+  check(again.registered.size === 3, '重新 apply 后再次注册 3 段')
 }
 
 // ── 7. 锚点回退与注册表异常面 ────────────────────────────────────────────────
@@ -263,6 +314,9 @@ console.log('\n[7] 锚点回退与健壮性')
   const custom = mount({ orders: { TOOL_BASH: 4242 } })
   const section = custom.registry.registered.get(text.CHINESE_RULE_SECTION)
   check(section.order === 4242 + text.SECTION_ORDER_OFFSET, '跟随注册表实际返回的 TOOL_BASH order', String(section.order))
+  const inlineSection = custom.registry.registered.get(text.INLINE_SCRIPT_RULE_SECTION)
+  check(inlineSection.order === 4242 + text.SECTION_ORDER_OFFSET + 2,
+    '内联段同样跟随锚点(锚点 +2)', String(inlineSection.order))
 
   // getSectionOrder 抛异常时回退到 1000,而不是让 apply 挂掉。
   const throwing = {
@@ -288,7 +342,7 @@ console.log('\n[7] 锚点回退与健壮性')
   threw = undefined
   try { index.apply(ctx, makeConfig({})) } catch (error) { threw = error }
   check(threw === undefined, 'settings 缺席时 apply 仍成功')
-  check(registry.registered.size === 2, 'settings 缺席不影响段落注册')
+  check(registry.registered.size === 3, 'settings 缺席不影响段落注册')
   check(logger.warn.some((m) => m.includes('[dsh-chinese] settings.configure')), 'settings 缺席时记一条 warn')
 }
 

@@ -14,7 +14,7 @@ DeepSeek Harness 插件集的工作区容器（workspace container）。本仓�
 | `dsh-local-no-auth/` | 子模块——独立 Cordis 插件 [`@falling-ts/dsh-local-no-auth`](dsh-local-no-auth/README.md)：纯 Host；对回环绑定的实例免去浏览器会话认证（替换 `ctx.connection` 三个方法，非回环绑定即拒载） | `git@github.com:falling-ts/dsh-local-no-auth.git`（branch `main`） |
 | `dsh-web-ding/` | 子模块——独立 Cordis 插件 [`@falling-ts/dsh-web-ding`](dsh-web-ding/README.md)：Host + 浏览器两半；回合结束时用 Web Audio 合成"叮"声并弹一个 Win11 风格通知 | `git@github.com:falling-ts/dsh-web-ding.git`（branch `main`） |
 | `dsh-start-command/` | 子模块——独立 Cordis 插件 [`@falling-ts/dsh-start-command`](dsh-start-command/README.md)：Host + 浏览器两半；用户发话且无其他 agent 运行时，在 `agent/pre-step` 上于会话工作目录执行一条配置命令 | `git@github.com:falling-ts/dsh-start-command.git`（branch `main`） |
-| `dsh-chinese/` | 子模块——独立 Cordis 插件 [`@falling-ts/dsh-chinese`](dsh-chinese/README.md)：纯 Host；为每次请求的系统提示词追加两条规则（思考与临时输出用中文；编辑文件必须用编辑工具，命令与脚本只能用于检验） | `git@github.com:falling-ts/dsh-chinese.git`（branch `main`） |
+| `dsh-chinese/` | 子模块——独立 Cordis 插件 [`@falling-ts/dsh-chinese`](dsh-chinese/README.md)：纯 Host；为每次请求的系统提示词追加三条规则（思考与临时输出用中文；编辑文件必须用编辑工具，命令与脚本只能用于检验；校验脚本优先内联执行，不留临时文件污染项目） | `git@github.com:falling-ts/dsh-chinese.git`（branch `main`） |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）的 `pnpm dsh web` 启动脚本 | — |
 
 ## 快速开始

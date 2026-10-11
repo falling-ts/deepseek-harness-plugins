@@ -3,7 +3,7 @@
  *
  * 与离线探针的分工:离线探针证明"注册逻辑写得对",本探针证明"活实例上真的生效了"——
  * 插件的 entry 被启用且 active、命名空间进了 settings/describe,并且**系统提示词里真的
- * 出现了那两段中文规则**。最后一条只能靠活体证明:`ctx.systemPrompt.section()` 是否被
+ * 出现了那三段中文规则**。最后一条只能靠活体证明:`ctx.systemPrompt.section()` 是否被
  * 上游装配链采信,离线桩答不了。
  *
  * 判据顺序(从"插件在不在"到"规则进没进提示词"):
@@ -102,9 +102,10 @@ console.log('\n[2] settings/describe')
   }
 }
 
-// ── 3. 系统提示词里真的有两段规则 ────────────────────────────────────────────
+// ── 3. 系统提示词里真的有三段规则 ────────────────────────────────────────────
 // 判据:让模型复述它当前遵守的语言与文件编辑规则。规则若没进系统提示词,模型无从知道
-// 这两条特定措辞(尤其"命令和脚本只能用于检验"这条非默认约定),回答会明显走样。
+// 这些特定措辞(尤其"命令和脚本只能用于检验"、"校验脚本优先内联执行"这两条非默认约定),
+// 回答会明显走样。
 console.log('\n[3] 真实回合:规则是否进入系统提示词')
 {
   // `session/create` 的形参名是 `request`(字段全可省);`session/prompt` 的形参名也是
@@ -147,7 +148,7 @@ console.log('\n[3] 真实回合:规则是否进入系统提示词')
     check(answer.length > 0, '回合已结束并取回会话内容', answer.length > 0 ? '' : '超时')
     if (answer.length > 0) {
       const page = JSON.parse(answer)
-      // 最硬的判据:`system/message` 记录(seq 最小那条 = 本回合的请求头)里逐字出现两段规则。
+      // 最硬的判据:`system/message` 记录(seq 最小那条 = 本回合的请求头)里逐字出现三段规则。
       const sys = (page.records ?? []).find((r) => r?.event?.type === 'system/message')
       const prompt = sys === undefined
         ? ''
@@ -159,21 +160,30 @@ console.log('\n[3] 真实回合:规则是否进入系统提示词')
         'system/message 里逐字出现编辑工具规则')
       check(prompt.includes('命令和脚本只能用于检验文件修改的结果'),
         'system/message 里逐字出现"只能用于检验"这条限定')
+      check(prompt.includes('优先直接内联执行'),
+        'system/message 里逐字出现校验脚本内联执行规则')
+      check(prompt.includes('不要先创建临时文件'),
+        'system/message 里逐字出现"不要先创建临时文件"这条限定')
       check(sys?.event?.data?.message?.source?.kind === 'system-prompt',
         'system/message 的来源是 system-prompt(证明走的是注册表装配)')
-      // 位置:两段都应排在首个官方工具说明之前(TOOL_READ 那句 "Use the read tool")。
+      // 位置:三段都应排在首个官方工具说明之前(TOOL_READ 那句 "Use the read tool")。
       const languageAt = prompt.indexOf('所有思考过程和临时输出都必须使用中文')
       const editAt = prompt.indexOf('编辑或修改文件时，必须使用专门的编辑文件工具')
+      const inlineAt = prompt.indexOf('优先直接内联执行')
       const toolAt = prompt.indexOf('Use the read tool')
       check(languageAt > 0 && toolAt > 0 && languageAt < toolAt,
         '中文规则排在官方工具说明之前', `language@${languageAt} tool@${toolAt}`)
       check(editAt > languageAt, '编辑工具规则排在中文规则之后', `edit@${editAt}`)
+      check(inlineAt > editAt, '内联执行规则排在编辑工具规则之后', `inline@${inlineAt}`)
+      check(inlineAt > 0 && inlineAt < toolAt, '内联执行规则也排在官方工具说明之前',
+        `inline@${inlineAt} tool@${toolAt}`)
 
-      // 软判据:模型自己在回答里复述了这两条(说明它确实读到了)。
+      // 软判据:模型自己在回答里复述了这些规则(说明它确实读到了)。
       const assistant = (page.records ?? []).find((r) => r?.event?.type === 'assistant/message')
       const reply = ((assistant?.event?.data?.message?.content ?? []).map((c) => c.text ?? '').join('\n'))
       check(/中文/.test(reply), '模型回答里复述了"中文"这条规则')
       check(/编辑工具|编辑文件/.test(reply), '模型回答里复述了"编辑工具"这条规则')
+      check(/内联|临时文件/.test(reply), '模型回答里复述了"内联执行/不留临时文件"这条规则')
       const snippet = prompt.replace(/\n+/g, ' | ').slice(0, 200)
       console.log(`       系统提示词开头:${snippet}`)
     }

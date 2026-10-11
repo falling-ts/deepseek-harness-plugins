@@ -167,7 +167,7 @@ tag `dsh-v0.2.0-rc.1` 对应的版本列车：`@deepseek-ai/cordis: ">=4.0.4"`�
 - `dsh-chinese`（2026-10-01 新增，同一基线，**纯 Host 无客户端半部**）：
   `dsh-system-prompt`（`ctx.systemPrompt.section` / `getSectionOrder`，本插件唯一的挂载缝）、
   `dsh-settings`（Config 表单 + `settings.configure`）、`schemastery`（Config schema）。
-  它是集合里**唯一走官方文档化扩展点、不做任何运行期替换**的插件：两段规则经
+  它是集合里**唯一走官方文档化扩展点、不做任何运行期替换**的插件：三段规则经
   `ctx.systemPrompt.section()` 贡献，不碰上游源码也不包裹任何实例方法。
 
 为什么 0.1.7 及以前必须排除（不是洁癖，是硬依赖）：
@@ -596,9 +596,15 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
 
 第四个自研插件，也是集合里**唯一走官方文档化扩展点、不做任何运行期替换**的一个：
 经 `ctx.systemPrompt.section()`（`packages/core/system-prompt/src/index.ts`）向每次请求的
-系统提示词贡献两段固定中文规则——① 所有思考与临时输出必须用中文（代码、标识符、路径、
+系统提示词贡献三段固定中文规则——① 所有思考与临时输出必须用中文（代码、标识符、路径、
 命令、配置键、API 名、符号保持原样）；② 编辑文件必须用编辑文件工具，命令与脚本只能用于
-**检验**，检验出错仍须回到编辑工具修正。
+**检验**，检验出错仍须回到编辑工具修正；③ 校验脚本优先**内联执行**（here-document 或 `-e`），
+不要先建临时文件以免污染项目（2026-10-02 起，v0.1.1）。
+
+> ③ 与 ② 的分工：② 说脚本**能不能**用（只能检验），③ 说既然能用**该怎么用**（内联、不落盘）。
+> "为了跑脚本而先创建它"本身也是一次文件创建，但 ② 没法在不把自己要求的检验一并禁掉的
+> 前提下禁止它，所以 ③ 补这个缺口而不是和 ② 打架；③ 同时留出口——确实要被复用、被项目引用
+> 的脚本属于仓库正式文件。
 
 **为什么它是纯 Host 插件**：规则改变的是**模型读到什么**，不是界面显示什么。因此没有
 `web/client.js`、没有 `dsh.client` 声明、没有 `./client` 导出，也因此**不在**
@@ -612,12 +618,13 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
   冻结，改开关要重启才生效。
 - **关掉的规则贡献空串而不是注销段落**。上游 `renderPrompt` 丢弃空段落，所以关掉的规则零
   token 贡献；按开关注册/注销反而需要一个 settings 订阅，且每次翻转都有半生效窗口。
-- **order 锚定 `getSectionOrder('TOOL_BASH')` + (-40)**，即两段都排在官方工具说明**之前**——
-  编辑规则约束的是 `edit`/`write` 怎么用，必须排在它们自己的说明之前。两段相差 1：order 相等
-  时上游按 code-unit 名序决胜，会把 `edit-tool` 排到 `language` 前面。
-- **规则文本固定不可配置**（`src/core/prompt-text.js` 的模块常量），只有两个布尔开关
-  （`chineseOnly` / `editToolOnly`）。把文本做成设置项只会为同一条规则制造第二个会漂移的
-  真相源。文本逐字进 `ch-prompt-probe.mjs` —— 一段被静默丢弃的规则本身不会报错。
+- **order 锚定 `getSectionOrder('TOOL_BASH')` + (-40)**，即三段都排在官方工具说明**之前**——
+  编辑规则约束的是 `edit`/`write` 怎么用，必须排在它们自己的说明之前。order 由 `slot` 游标
+  累加（`+0`/`+1`/`+2`），只对已启用的规则递增，所以关掉中间一段不留空洞；**任意两段都不得取
+  相同 order**——order 相等时上游按 code-unit 名序决胜，会把 `edit-tool` 排到 `language` 前面。
+- **规则文本固定不可配置**（`src/core/prompt-text.js` 的模块常量），只有三个布尔开关
+  （`chineseOnly` / `editToolOnly` / `inlineScriptOnly`）。把文本做成设置项只会为同一条规则制造
+  第二个会漂移的真相源。文本逐字进 `ch-prompt-probe.mjs` —— 一段被静默丢弃的规则本身不会报错。
 
 **挂载实测（3080，`DSH_HOME=~/.dsh-web`）**：`dsh plugin --profile web add <本地路径>` 装为
 `link:` 依赖后，profile HMR **进程内热装载，无需重启**——`pluginInventory/list` 立刻出现
@@ -633,10 +640,12 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
 
 **活体验证判据（`exploration/ch-live-probe.mjs 3080`，15 项）**：最硬的一条是读回会话的
 `system/message` 记录（`session/page`，载荷 `{request:{address:{kind:'session',sessionId},throughSeq}}`；
-`throughSeq` 超过会话游标会报 `past cursor N`，探针据此自动探测上界），断言两段规则**逐字出现**、
+`throughSeq` 超过会话游标会报 `past cursor N`，探针据此自动探测上界），断言三段规则**逐字出现**、
 来源 `source.kind === 'system-prompt'`（证明走的是注册表装配而非别的路径）、且中文规则的位置
-**早于**官方工具说明 `Use the read tool`。实测该请求的 `system/message` 里，两段规则接在
+**早于**官方工具说明 `Use the read tool`。实测该请求的 `system/message` 里，三段规则接在
 preamble 之后、工具说明之前，模型也能逐字复述——这是"规则真的进了模型请求"的完整证据链。
+（`ch-live-probe.mjs` 自 v0.1.1 起把第三段 `优先直接内联执行` 及其"排在官方工具说明之前"
+一并纳入断言。）
 
 
 
