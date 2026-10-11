@@ -129,6 +129,15 @@ console.log(`  (hashed classes: ${JSON.stringify(CLASS)})\n`)
 // ── B. inject a faithful running row, then drive the plugin's real chain ─────
 console.log('=== B. live client: paint, sync, restore ===\n')
 
+// Establish a CLEAN starting state first. The `liveUi` field PERSISTS in the
+// settings store, so whatever a previous run (or an unrelated session) left
+// behind is painted onto the row the moment it is injected — including a
+// retired phase name from an older build, which the client faithfully renders
+// by falling back to the host's canonical text. An `end` push is the clear
+// phase, so the row must start on the official text.
+await rpc('settings', 'update', { ns: NS, patch: { liveUi: { phase: 'end', text: '', textId: 'end' } } })
+await page.waitForTimeout(600)
+
 await page.evaluate((CLASS) => {
   const el = (tag, className) => { const node = document.createElement(tag); if (className) node.className = className; return node }
   const host = el('div')
@@ -188,11 +197,11 @@ check('injected row starts on the official text', before.real === '深度求索�
 await page.screenshot({ path: SHOT_BEFORE, clip: { x: 0, y: 540, width: 900, height: 180 } })
 
 // Host writes liveUi: real broadcast → mirror → derive → paintTurnStatus.
-await rpc('settings', 'update', { ns: NS, patch: { liveUi: { phase: 'working', text: '正在驯服混沌', textId: 'working.11' } } })
+await rpc('settings', 'update', { ns: NS, patch: { liveUi: { phase: 'tooling', text: '工具执行中', textId: 'tooling' } } })
 await page.waitForTimeout(2500)
 const painted = await page.evaluate(READ)
-check('real text node carries the plugin phrase + official clock', painted.real === '正在驯服混沌，用时1分14秒 ···', String(painted.real))
-check('shimmer ::after copy kept in sync', painted.copy === '正在驯服混沌，用时1分14秒 ···', String(painted.copy))
+check('real text node carries the plugin phrase + official clock', painted.real === '工具执行中，用时1分14秒 ···', String(painted.real))
+check('shimmer ::after copy kept in sync', painted.copy === '工具执行中，用时1分14秒 ···', String(painted.copy))
 check('role=status announcement untouched', painted.announcement === '深度求索中', String(painted.announcement))
 check('whale icon + SVG still present', painted.svgPaths === 1 && painted.iconHidden)
 check('divider still childless', painted.dividerChildren === 0, String(painted.dividerChildren))
@@ -209,8 +218,8 @@ const reApplied = await page.evaluate(() => new Promise((resolve) => {
   deco.setAttribute('data-shimmer-text', NEXT)
   setTimeout(() => resolve({ real: realEl.textContent, copy: deco.getAttribute('data-shimmer-text') }), 400)
 }))
-check('observer re-applies after a React rewrite', reApplied.real === '正在驯服混沌，用时1分15秒 ···', String(reApplied.real))
-check('observer re-applies to the shimmer copy', reApplied.copy === '正在驯服混沌，用时1分15秒 ···', String(reApplied.copy))
+check('observer re-applies after a React rewrite', reApplied.real === '工具执行中，用时1分15秒 ···', String(reApplied.real))
+check('observer re-applies to the shimmer copy', reApplied.copy === '工具执行中，用时1分15秒 ···', String(reApplied.copy))
 
 await page.screenshot({ path: SHOT, clip: { x: 0, y: 540, width: 900, height: 180 } })
 

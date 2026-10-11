@@ -175,25 +175,28 @@ function checkPlugin({ name, file, hasHostBadge }) {
   const used = new Set(translateKeys(src))
   const unknown = [...used].filter((k) => !base.includes(k))
   check(unknown.length === 0, 'every t()/tr() key exists in zh', `unknown=[${unknown}]`)
-  // The badge keys are selected by construction ('badge' + capitalized textId,
-  // 'badgeWorking' + index), so only literal-reference keys can be judged dead.
+  // The badge keys are selected through the client's PHASE_KEYS map (textId →
+  // 'badge*'), so only literal-reference keys can be judged dead.
   const dynamic = /^badge/
   const dead = base.filter((k) => !dynamic.test(k) && !src.includes(`"${k}"`))
   check(dead.length === 0, 'every declared key is referenced somewhere', `dead=[${dead}]`)
 
   if (hasHostBadge) {
-    // Index alignment against the host's canonical WORKING_TEXTS: the client's
-    // zh entries shadow liveUi.text, so drift here changes what a zh user sees.
+    // Phase coverage against the host's canonical phase union: the client's zh
+    // entries shadow liveUi.text, so a missing key silently changes what a zh
+    // user sees (the lookup would fall back to the host text or the key name).
     const host = fs.readFileSync(new URL('../dsh-force-compact/src/core/ui-signal.js', import.meta.url), 'utf8')
-    const hostTexts = [...host.match(/WORKING_TEXTS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\)/)[1]
-      .matchAll(/'([^']*)'/g)].map((m) => m[1])
-    const zhBadge = Array.from({ length: 20 }, (_, i) => dicts.zh[`badgeWorking${i}`])
-    check(zhBadge.length === hostTexts.length, `20 badgeWorking entries vs host ${hostTexts.length}`)
-    check(zhBadge.every((t, i) => t === hostTexts[i]), 'zh badge texts match the host order/content')
-    for (const lang of ['en', 'ja', 'ko']) {
-      const list = Array.from({ length: 20 }, (_, i) => dicts[lang][`badgeWorking${i}`])
-      check(list.every((v) => typeof v === 'string' && v.length > 0), `${lang} badge texts complete (20)`)
+    const hostPhases = [...host.match(/PHASE_TEXTS\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\)/)[1]
+      .matchAll(/\[PHASE_[A-Z]+\]:\s*'([^']*)'/g)].map((m) => m[1])
+    const clientMap = src.match(/const PHASE_KEYS\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\)/)?.[1] ?? ''
+    const mapped = [...clientMap.matchAll(/(\w+):\s*"([^"]*)"/g)].map((m) => m[2])
+    check(mapped.length === hostPhases.length,
+      `phase keys cover the host union (${hostPhases.length})`, `client=${mapped.length}`)
+    for (const lang of ['zh', 'en', 'ja', 'ko']) {
+      const missing = mapped.filter((k) => typeof dicts[lang]?.[k] !== 'string')
+      check(missing.length === 0, `${lang} defines every phase badge`, `missing=[${missing}]`)
     }
+    check(!/badgeWorking\d/.test(src), 'retired random badgeWorking<N> keys are gone')
   }
 }
 

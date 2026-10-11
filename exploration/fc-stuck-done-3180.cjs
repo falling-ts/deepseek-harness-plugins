@@ -1,9 +1,15 @@
-// fc-stuck-done-3080.cjs — NEGATIVE case: a DONE banner (phase 'done') must NOT be
-// overridden by clearStuckCompressingBanner (it only clears phase==='compressing').
-// Push a real DONE banner, fire a model request, and confirm the badge is NOT
-// force-cleared to a working pair by the pre-step hook. (The non-important llm/stream
-// watermark also can't override a `[` bracket, so the DONE banner survives either way —
-// the point is the hook does NOT add an important working-pair push for a DONE badge.)
+// fc-stuck-done-3180.cjs — the DONE banner's lifecycle after the 2026-10 phase rework.
+//
+// WHAT CHANGED: `publishUiStatus` used to refuse to overwrite a `[`-bracketed
+// text, and `publishDone` armed a 3 s fallback timer to repaint a random working
+// pair. Both are gone. Every phase now overwrites unconditionally, and the DONE
+// banner is superseded by the NEXT REAL AGENT PHASE — normally the requesting /
+// responding phases of the model call that follows the compaction.
+//
+// So this script asserts the NEW behavior: after a model request, a pushed DONE
+// banner must have been replaced by a real phase (never left on `done`).
+// clearStuckCompressingBanner itself still only targets phase 'compressing' —
+// that is asserted separately by fc-stuck-banner-3180.cjs.
 const BASE = 'http://127.0.0.1:3080/api'
 const NS = 'falling-ts-force-compact'
 
@@ -32,8 +38,8 @@ async function main() {
   console.log('   sessionId:', sessionId || '(FAILED)')
   if (!sessionId) { process.exitCode = 1; return }
 
-  // Real DONE banner shape, exactly what publishDone() writes: pinnedPayload('done').
-  const doneBanner = { text: '[压缩完成!]', color: '#2f6f52', phase: 'done' }
+  // Real DONE banner shape, exactly what publishDone() writes.
+  const doneBanner = { phase: 'done', text: '[压缩完成!]', textId: 'done' }
   console.log('2) push a DONE banner (REAL shape) into liveUi ...')
   const up = await call('settings/update', { ns: NS, patch: { liveUi: doneBanner }, expectedRevision: undefined })
   console.log('   update ok:', !!(up && up.result && up.result.ok))
@@ -43,7 +49,7 @@ async function main() {
   const isDone = before && before.phase === 'done'
   console.log('   banner is DONE (phase=done):', isDone)
 
-  console.log('3) send prompt -> fires agent/pre-step -> clearStuckCompressingBanner (should be a NO-OP for DONE) ...')
+  console.log('3) send prompt -> fires agent/pre-step, then the model request publishes its own phase ...')
   const prompt = await call('session/prompt', {
     request: { requestId: uuid(), sessionId, mode: 'queue', content: [{ type: 'text', text: 'Reply with the single word: ok' }] },
   })
@@ -54,16 +60,17 @@ async function main() {
   const after = await liveUi()
   console.log('   liveUi AFTER prompt:', JSON.stringify(after))
 
-  // The DONE banner should NOT have been force-overridden to a working pair by the
-  // pre-step hook. (It stays 'done' or, at worst, the watermark left it alone. The
-  // hook only pushes when phase==='compressing', so it must NOT appear here.)
-  const hookDidNotClearDone = after && after.phase === 'done'
+  // The DONE banner must have been superseded by a REAL agent phase: either a
+  // model-action phase or the conversation-end clear. `done` lingering here would
+  // mean the natural-cadence overwrite is broken.
+  const PHASES = ['requesting', 'responding', 'tooling', 'compressing', 'end']
+  const superseded = after && PHASES.includes(after.phase)
   console.log('\n=== RESULT ===')
   console.log('banner was DONE before:', isDone)
-  console.log('banner still DONE after model request (hook did NOT clear it):', hookDidNotClearDone)
-  if (isDone && hookDidNotClearDone) console.log('PASS — the DONE banner was left alone (conditional targets COMPRESSING only).')
+  console.log('DONE banner superseded by a real phase after the request:', superseded, `(now phase=${after && after.phase})`)
+  if (isDone && superseded) console.log('PASS — the DONE banner gave way to the next real agent phase (natural cadence works).')
   else if (!isDone) console.log('NOTE — the DONE banner did not stick; inconclusive.')
-  else console.log('NOTE — banner changed after the request (possibly the 3 s DONE fallback timer fired, which is expected and separate from the hook).')
-  process.exitCode = (isDone && hookDidNotClearDone) ? 0 : 3
+  else console.log('FAIL — the DONE banner is still displayed after a model request; the next phase did not overwrite it.')
+  process.exitCode = (isDone && superseded) ? 0 : 3
 }
 main().catch((e) => { console.error('FAILED', e); process.exitCode = 1 })

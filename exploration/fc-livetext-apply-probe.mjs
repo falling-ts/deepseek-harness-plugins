@@ -94,7 +94,7 @@ const ctx = {
   get: () => undefined,
   inject: (_deps, callback) => { callback(ctx); return () => {} },
   locale: {
-    bind: () => (key) => (key === 'badgeWorking13' ? '正在翻阅《天机》' : key),
+    bind: () => (key) => (key === 'badgeRequesting' ? '模型请求中' : key),
     register: () => () => {},
     addLanguage: () => () => {},
   },
@@ -141,10 +141,10 @@ content.append(icon); content.append(shimmer)
 root.append(status); root.append(divider); root.append(content)
 roots.push(root)
 
-snapshot = { status: 'ready', value: { liveUi: { phase: 'working', text: '正在翻阅《天机》', textId: 'working.13' } }, writable: true }
+snapshot = { status: 'ready', value: { liveUi: { phase: 'requesting', text: '模型请求中', textId: 'requesting' } }, writable: true }
 onSnapshot()
-check('liveUi push rewrites the visible label', labelText.nodeValue, '正在翻阅《天机》，用时1分14秒 ···')
-check('liveUi push rewrites the shimmer copy', decoText.getAttribute('data-shimmer-text'), '正在翻阅《天机》，用时1分14秒 ···')
+check('liveUi push rewrites the visible label', labelText.nodeValue, '模型请求中，用时1分14秒 ···')
+check('liveUi push rewrites the shimmer copy', decoText.getAttribute('data-shimmer-text'), '模型请求中，用时1分14秒 ···')
 check('announcement node untouched', status.textContent, '深度求索中')
 check('whale icon untouched', Object.keys(whale.attrs).length, 0)
 check('divider untouched', divider.childNodes.length, 0)

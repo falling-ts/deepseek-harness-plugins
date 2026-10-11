@@ -1,11 +1,18 @@
-// fc-stuck-banner-3080.cjs — prove the "stuck [强制压缩中>>] banner" fix:
+// fc-stuck-banner-3180.cjs — prove the "stuck [强制压缩中>>] banner" fix:
 //  1) create a fresh session;
 //  2) push a FAKE pinned COMPRESSING banner into falling-ts-force-compact.liveUi
-//     (simulating the stuck red banner that a never-committed compaction leaves);
+//     (simulating the banner a never-committed compaction leaves, or one that
+//     PERSISTED across a restart);
 //  3) send a prompt -> fires agent/pre-step -> clearStuckCompressingBanner()
-//     (isCompactionActive=false for a fresh session) -> publishUiStatus(workingPair, important=true)
-//     which OVERRIDES the bracket banner;
-//  4) read settings/describe -> liveUi.text must now be a working pair, NOT the bracket.
+//     (isCompactionActive=false for a fresh session) -> publishRequesting()
+//     which OVERRIDES the bracket with this step's REAL phase (模型请求中);
+//  4) read settings/describe -> liveUi.text must no longer be the bracket.
+//
+// NOTE (2026-10 phase rework): the override used to publish a random "working
+// pair"; it now publishes the requesting phase. The field carries no colour any
+// more, and every phase overwrites unconditionally (the old `[`-prefix gate is
+// gone), so what this script really proves is that the STALE banner does not
+// survive the next model step.
 const BASE = 'http://127.0.0.1:3080/api'
 const NS = 'falling-ts-force-compact'
 
@@ -43,8 +50,8 @@ async function main() {
   if (!sessionId) { console.error('cannot continue without a session'); process.exitCode = 1; return }
 
   console.log('2) push a pinned COMPRESSING banner (REAL shape) into liveUi ...')
-  // Real shape, exactly what publishCompressing() writes: pinnedPayload('compressing').
-  const fakeBanner = { text: '[强制压缩中>>>]', color: '#9b1c2b', phase: 'compressing' }
+  // Real payload shape, exactly what publishCompressing() writes.
+  const fakeBanner = { phase: 'compressing', text: '[强制压缩中>>>]', textId: 'compressing' }
   const up = await call('settings/update', { ns: NS, patch: { liveUi: fakeBanner }, expectedRevision: undefined })
   console.log('   update ok:', !!(up && up.result && up.result.ok))
   await sleep(500)
@@ -67,8 +74,8 @@ async function main() {
   const overridden = after && typeof after.text === 'string' && !after.text.startsWith('[')
   console.log('\n=== RESULT ===')
   console.log('stuck banner was bracket-pinned before:', isStuck)
-  console.log('banner overridden to a working pair after model request:', overridden)
-  if (isStuck && overridden) console.log('PASS — the stale [强制压缩中>>>] banner was cleared on the model request (fix works).')
+  console.log('banner replaced by a real agent phase after model request:', overridden)
+  if (isStuck && overridden) console.log('PASS — the stale [强制压缩中>>>] banner did not survive the model request (fix works).')
   else if (!isStuck) console.log('NOTE — the fake banner did not stick (schema may reject/strip it); override check inconclusive.')
   else console.log('FAIL — banner still bracket-pinned after the model request.')
   process.exitCode = (isStuck && overridden) ? 0 : 2

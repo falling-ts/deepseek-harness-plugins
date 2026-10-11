@@ -125,25 +125,25 @@ function check(name, actual, expected) {
   else { failures.push(`${name}: got ${JSON.stringify(actual)}, want ${JSON.stringify(expected)}`); console.log(`  FAIL ${name}: got ${JSON.stringify(actual)} want ${JSON.stringify(expected)}`) }
 }
 const zhT = (key) => ({
+  badgeRequesting: '[请求中]', badgeResponding: '[响应中]', badgeTooling: '[工具中]',
   badgeCompressing: '[压缩中]', badgeDone: '[完成]', badgeEnd: '',
-  badgeWorking13: '正在翻阅《天机》', badgeWorking7: '假装很忙',
 }[key] ?? key)
 const enT = (key) => ({
+  badgeRequesting: '[requesting]', badgeResponding: '[responding]', badgeTooling: '[tooling]',
   badgeCompressing: '[compressing]', badgeDone: '[done]', badgeEnd: '',
-  badgeWorking13: 'Consulting the oracle...', badgeWorking7: 'Looking busy...',
 }[key] ?? key)
 
 // 1 · zh running label: replace the leading phrase, keep the clock AND the official " ···".
 const zh = mount('深度求索中', '深度求索中，用时1分14秒 ···')
-api.paintTurnStatus({ phase: 'working', text: '正在翻阅《天机》', textId: 'working.13' }, zhT)
-check('zh: prefix replaced, harness clock preserved', zh.textNode.nodeValue, '正在翻阅《天机》，用时1分14秒 ···')
-check('zh: shimmer copy carries the same sentence', zh.decoText.getAttribute('data-shimmer-text'), '正在翻阅《天机》，用时1分14秒 ···')
+api.paintTurnStatus({ phase: 'requesting', text: '模型请求中', textId: 'requesting' }, zhT)
+check('zh: prefix replaced, harness clock preserved', zh.textNode.nodeValue, '[请求中]，用时1分14秒 ···')
+check('zh: shimmer copy carries the same sentence', zh.decoText.getAttribute('data-shimmer-text'), '[请求中]，用时1分14秒 ···')
 
 // 2 · en running label keeps its own connector (" for ").
 const en = mount('Deep diving', 'Deep diving for 1m 14s ···')
-api.paintTurnStatus({ phase: 'working', text: 'Consulting the oracle...', textId: 'working.13' }, enT)
-check('en: prefix replaced, harness clock preserved', en.textNode.nodeValue, 'Consulting the oracle... for 1m 14s ···')
-check('en: shimmer copy carries the same sentence', en.decoText.getAttribute('data-shimmer-text'), 'Consulting the oracle... for 1m 14s ···')
+api.paintTurnStatus({ phase: 'responding', text: '模型响应中', textId: 'responding' }, enT)
+check('en: prefix replaced, harness clock preserved', en.textNode.nodeValue, '[responding] for 1m 14s ···')
+check('en: shimmer copy carries the same sentence', en.decoText.getAttribute('data-shimmer-text'), '[responding] for 1m 14s ···')
 
 // 3 · the a11y announcement is read-only for this plugin.
 check('a11y announcement untouched', zh.status.textContent, '深度求索中')
@@ -155,14 +155,14 @@ check('divider untouched', zh.divider.childNodes.length, 0)
 
 // 5 · settled turns (no [data-chat-running]) are left alone — 0.2.0 regression guard.
 const ended = mountSettledTurn('已完成', '已完成，用时 2分5秒')
-api.paintTurnStatus({ phase: 'working', text: '假装很忙', textId: 'working.7' }, zhT)
+api.paintTurnStatus({ phase: 'tooling', text: '工具执行中', textId: 'tooling' }, zhT)
 check('settled turn label left official', ended.textNode.nodeValue, '已完成，用时 2分5秒')
 
 // 6 · no-duration form (turn.start absent) → prefix only.
 const bare = mount('深度求索中', '深度求索中')
-api.paintTurnStatus({ phase: 'working', text: '假装很忙', textId: 'working.7' }, zhT)
-check('no-duration form → prefix only', bare.textNode.nodeValue, '假装很忙')
-check('no-duration form → shimmer copy is the prefix only', bare.decoText.getAttribute('data-shimmer-text'), '假装很忙')
+api.paintTurnStatus({ phase: 'tooling', text: '工具执行中', textId: 'tooling' }, zhT)
+check('no-duration form → prefix only', bare.textNode.nodeValue, '[工具中]')
+check('no-duration form → shimmer copy is the prefix only', bare.decoText.getAttribute('data-shimmer-text'), '[工具中]')
 
 // 7 · phase change while our text is still in place (React has not rewritten yet).
 api.paintTurnStatus({ phase: 'compressing', text: '[强制压缩中>>>]', textId: 'compressing' }, zhT)
@@ -208,19 +208,19 @@ check('clear disconnects the observer', cleared.connected, false)
 
 // 12 · fallback: no dictionary entry / no t → the host's canonical text.
 const noT = mount('深度求索中', '深度求索中，用时3秒 ···')
-api.paintTurnStatus({ phase: 'working', text: '正在酝酿骚操作', textId: 'working.99' }, undefined)
-check('unknown textId falls back to the canonical text', noT.textNode.nodeValue, '正在酝酿骚操作，用时3秒 ···')
+api.paintTurnStatus({ phase: 'requesting', text: '模型请求中', textId: 'no-such-phase' }, undefined)
+check('unknown textId falls back to the canonical text', noT.textNode.nodeValue, '模型请求中，用时3秒 ···')
 
 // 13 · two open sessions are painted independently.
 const second = mount('深度求索中', '深度求索中，用时5秒 ···')
-api.paintTurnStatus({ phase: 'working', text: '正在驯服混沌', textId: 'working.11' }, zhT)
+api.paintTurnStatus({ phase: 'responding', text: '模型响应中', textId: 'responding' }, zhT)
 check('all open sessions painted', `${noT.textNode.nodeValue} | ${second.textNode.nodeValue}`,
-  '正在驯服混沌，用时3秒 ··· | 正在驯服混沌，用时5秒 ···')
+  '[响应中]，用时3秒 ··· | [响应中]，用时5秒 ···')
 
 // 14 · a container that appears only after the push (fresh turn) is picked up by childList records.
 const late = mount('深度求索中', '深度求索中，用时7秒 ···')
 observerNow().callback([{ type: 'childList', target: documentStub.body, addedNodes: [late.root] }])
-check('container mounted after the push is painted', late.textNode.nodeValue, '正在驯服混沌，用时7秒 ···')
+check('container mounted after the push is painted', late.textNode.nodeValue, '[响应中]，用时7秒 ···')
 
 console.log(`\n${failures.length === 0 ? 'ALL CHECKS PASSED' : 'FAILURES PRESENT'} — ${passed} passed, ${failures.length} failed`)
 if (failures.length !== 0) { for (const f of failures) console.log(`  ${f}`); process.exit(1) }
