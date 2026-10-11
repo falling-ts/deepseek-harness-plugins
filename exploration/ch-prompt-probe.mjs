@@ -145,6 +145,20 @@ console.log('\n[1] 命名空间与包名一致性')
 // ── 2. 提示词文本逐字钉住 ────────────────────────────────────────────────────
 console.log('\n[2] 提示词文本逐字钉住')
 {
+  // 加粗总纲:每段第一行是 `**…**` 包裹的一句话核心要求。
+  const DIGESTS = {
+    CHINESE_RULE_TEXT: '**必须用中文思考和输出；代码、标识符与符号保持原样，不翻译、不改写。**',
+    EDIT_TOOL_RULE_TEXT: '**修改文件必须用编辑文件工具；命令与脚本只能用于检验，检验出错必须回到编辑工具修正。**',
+    INLINE_SCRIPT_RULE_TEXT: '**校验脚本一律内联执行，不要先写临时文件；只有需长期留存的脚本才写进仓库。**',
+  }
+  for (const [name, digest] of Object.entries(DIGESTS)) {
+    const body = text[name]
+    check(body.split('\n')[0] === digest, `${name} 首行是逐字钉住的加粗总纲`, body.split('\n')[0])
+    // 恰好一对 `**`:加粗只给总纲,细则不加粗(加粗多了等于没加粗)。
+    check((body.match(/\*\*/g) ?? []).length === 2, `${name} 只有总纲被一对 ** 包裹`,
+      String((body.match(/\*\*/g) ?? []).length))
+  }
+
   check(text.CHINESE_RULE_TEXT.includes('所有思考过程和临时输出都必须使用中文'),
     '中文规则含"所有思考过程和临时输出都必须使用中文"')
   check(/代码|符号/.test(text.CHINESE_RULE_TEXT) && text.CHINESE_RULE_TEXT.includes('不翻译、不改写'),
@@ -171,6 +185,22 @@ console.log('\n[2] 提示词文本逐字钉住')
     '内联规则给出多行代码的传法(here-document / -e)')
   check(text.INLINE_SCRIPT_RULE_TEXT.includes('长期留存') && text.INLINE_SCRIPT_RULE_TEXT.includes('写入仓库文件'),
     '内联规则保留"需要长期留存时才写文件"的出口')
+  // 总纲只准复述、不准新增要求:它讲到的每个概念,细则里都必须能对上。
+  // 用概念词表而不是子串比对——总纲本就是凝练改写,不该要求逐字复述细则。
+  const CONCEPTS = {
+    CHINESE_RULE_TEXT: ['中文', '代码', '标识符'],
+    EDIT_TOOL_RULE_TEXT: ['编辑文件工具', '命令', '脚本', '检验'],
+    INLINE_SCRIPT_RULE_TEXT: ['内联执行', '临时文件', '长期留存'],
+  }
+  for (const [name, concepts] of Object.entries(CONCEPTS)) {
+    const [digest, ...detailLines] = text[name].split('\n')
+    const detail = detailLines.join('\n')
+    const absentInDigest = concepts.filter((word) => !digest.includes(word))
+    const absentInDetail = concepts.filter((word) => !detail.includes(word))
+    check(absentInDigest.length === 0, `${name} 总纲覆盖了全部核心概念`, absentInDigest.join(' / '))
+    check(absentInDetail.length === 0, `${name} 核心概念在细则中都有落点`, absentInDetail.join(' / '))
+  }
+
   // 段落顺序:语言规则在前,工具规则居中,内联规则在最后(工具规则的细化)。
   const all = text.buildSections({ chinese: true, editTool: true, inlineScript: true, anchorOrder: 1000 })
   check(all.length === 3, '三条规则都开时产生 3 段', String(all.length))

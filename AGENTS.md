@@ -88,7 +88,7 @@
 | `dsh-local-no-auth/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-local-no-auth`，纯 Host、无客户端半部） | `git@github.com:falling-ts/dsh-local-no-auth.git`（branch `main`） |
 | `dsh-web-ding/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-web-ding`，Host + 浏览器 client 两半） | `git@github.com:falling-ts/dsh-web-ding.git`（branch `main`） |
 | `dsh-start-command/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-start-command`，Host + 浏览器 client 两半；挂在 `agent/pre-step` 上执行"开始前命令"） | `git@github.com:falling-ts/dsh-start-command.git`（branch `main`） |
-| `dsh-chinese/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-chinese`，纯 Host、无客户端半部；在系统提示词里追加"中文输出"与"编辑必须用编辑工具"两条规则） | `git@github.com:falling-ts/dsh-chinese.git`（branch `main`） |
+| `dsh-chinese/` | 子模块（独立 Cordis 插件 `@falling-ts/dsh-chinese`，纯 Host、无客户端半部；在系统提示词里追加"中文输出"、"编辑必须用编辑工具"、"校验脚本内联执行"三条规则，每段首行是一句 `**…**` 加粗总纲） | `git@github.com:falling-ts/dsh-chinese.git`（branch `main`） |
 | `awesome-dsh-plugin/` | 子模块（社区目录 fork：`data/plugins/*.yml` + 重新生成的双语 README） | `git@github.com:falling-ts/awesome-dsh-plugin.git`（fork，branch `main`） |
 | `docs/` | 工作区级技术文档（后端接口目录、上下文管理/会话结构分析、llama.cpp 适配方案、**插件规范符合性评审**等） | — |
 | `harness-server.sh` | 跨平台（Linux + Windows Git Bash）服务器启动脚本 | — |
@@ -599,12 +599,18 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
 系统提示词贡献三段固定中文规则——① 所有思考与临时输出必须用中文（代码、标识符、路径、
 命令、配置键、API 名、符号保持原样）；② 编辑文件必须用编辑文件工具，命令与脚本只能用于
 **检验**，检验出错仍须回到编辑工具修正；③ 校验脚本优先**内联执行**（here-document 或 `-e`），
-不要先建临时文件以免污染项目（2026-10-02 起，v0.1.1）。
+不要先建临时文件以免污染项目（2026-10-02 起，v0.1.1）。**每段首行是一句 `**…**` 加粗总纲**，
+凝练该段核心要求，其后才是细则（v0.1.2）。
 
 > ③ 与 ② 的分工：② 说脚本**能不能**用（只能检验），③ 说既然能用**该怎么用**（内联、不落盘）。
 > "为了跑脚本而先创建它"本身也是一次文件创建，但 ② 没法在不把自己要求的检验一并禁掉的
 > 前提下禁止它，所以 ③ 补这个缺口而不是和 ② 打架；③ 同时留出口——确实要被复用、被项目引用
 > 的脚本属于仓库正式文件。
+>
+> 加粗总纲的分工：它排在官方工具说明**之前**，很容易被当成背景散文滑过去，加粗是为了让它
+> 以**约束**的身份被读到（上游自己的系统提示词也这么标记硬性要求）。`**` 原样送达——上游
+> `renderPrompt` 只插值 `{{…}}`、只丢弃空段落，不做 markdown 剥离。总纲只准**复述**细则、
+> 不准新增要求（细则才是契约），探针用概念词表双向断言；每段恰好一对 `**`，细则不加粗。
 
 **为什么它是纯 Host 插件**：规则改变的是**模型读到什么**，不是界面显示什么。因此没有
 `web/client.js`、没有 `dsh.client` 声明、没有 `./client` 导出，也因此**不在**
@@ -625,6 +631,7 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
 - **规则文本固定不可配置**（`src/core/prompt-text.js` 的模块常量），只有三个布尔开关
   （`chineseOnly` / `editToolOnly` / `inlineScriptOnly`）。把文本做成设置项只会为同一条规则制造
   第二个会漂移的真相源。文本逐字进 `ch-prompt-probe.mjs` —— 一段被静默丢弃的规则本身不会报错。
+  **加粗总纲同样固定**：它也是文本，也逐字进探针，且只准复述该段细则已有的要求。
 
 **挂载实测（3080，`DSH_HOME=~/.dsh-web`）**：`dsh plugin --profile web add <本地路径>` 装为
 `link:` 依赖后，profile HMR **进程内热装载，无需重启**——`pluginInventory/list` 立刻出现
@@ -638,14 +645,15 @@ web-ding 0.6.1 发布于 **0.8 小时前**（都被挡），而 0.7.0 / 0.6.0 �
 且 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 在 **PowerShell 里要写成 `$env:CODEBUDDY_SAFE_DELETE_ENABLED='0'`**
 （`VAR=value cmd` 是 bash 语法，pwsh 会把它当命令名而报 CommandNotFoundException）。
 
-**活体验证判据（`exploration/ch-live-probe.mjs 3080`，15 项）**：最硬的一条是读回会话的
+**活体验证判据（`exploration/ch-live-probe.mjs 3080`）**：最硬的一条是读回会话的
 `system/message` 记录（`session/page`，载荷 `{request:{address:{kind:'session',sessionId},throughSeq}}`；
 `throughSeq` 超过会话游标会报 `past cursor N`，探针据此自动探测上界），断言三段规则**逐字出现**、
 来源 `source.kind === 'system-prompt'`（证明走的是注册表装配而非别的路径）、且中文规则的位置
 **早于**官方工具说明 `Use the read tool`。实测该请求的 `system/message` 里，三段规则接在
 preamble 之后、工具说明之前，模型也能逐字复述——这是"规则真的进了模型请求"的完整证据链。
 （`ch-live-probe.mjs` 自 v0.1.1 起把第三段 `优先直接内联执行` 及其"排在官方工具说明之前"
-一并纳入断言。）
+一并纳入断言；自 v0.1.2 起再断言**三段的 `**…**` 加粗总纲逐字出现**——这条只能靠活体证明
+注册表没有对文本做任何处理，加粗总纲也确实排在同段细则之前。）
 
 
 

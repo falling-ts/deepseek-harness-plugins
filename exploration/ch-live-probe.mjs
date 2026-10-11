@@ -3,8 +3,8 @@
  *
  * 与离线探针的分工:离线探针证明"注册逻辑写得对",本探针证明"活实例上真的生效了"——
  * 插件的 entry 被启用且 active、命名空间进了 settings/describe,并且**系统提示词里真的
- * 出现了那三段中文规则**。最后一条只能靠活体证明:`ctx.systemPrompt.section()` 是否被
- * 上游装配链采信,离线桩答不了。
+ * 出现了那三段中文规则(含每段的加粗总纲)**。最后一条只能靠活体证明:
+ * `ctx.systemPrompt.section()` 是否被上游装配链采信,离线桩答不了。
  *
  * 判据顺序(从"插件在不在"到"规则进没进提示词"):
  *   1. pluginInventory/list 里 `include:falling-ts-chinese` 为 enabled + active;
@@ -164,15 +164,25 @@ console.log('\n[3] 真实回合:规则是否进入系统提示词')
         'system/message 里逐字出现校验脚本内联执行规则')
       check(prompt.includes('不要先创建临时文件'),
         'system/message 里逐字出现"不要先创建临时文件"这条限定')
+      // 加粗总纲:注册表不要插值 `**`,它必须原样到达模型。
+      check(prompt.includes('**必须用中文思考和输出；代码、标识符与符号保持原样，不翻译、不改写。**'),
+        'system/message 里逐字出现中文规则的加粗总纲')
+      check(prompt.includes('**修改文件必须用编辑文件工具；命令与脚本只能用于检验，检验出错必须回到编辑工具修正。**'),
+        'system/message 里逐字出现编辑规则的加粗总纲')
+      check(prompt.includes('**校验脚本一律内联执行，不要先写临时文件；只有需长期留存的脚本才写进仓库。**'),
+        'system/message 里逐字出现内联规则的加粗总纲')
       check(sys?.event?.data?.message?.source?.kind === 'system-prompt',
         'system/message 的来源是 system-prompt(证明走的是注册表装配)')
       // 位置:三段都应排在首个官方工具说明之前(TOOL_READ 那句 "Use the read tool")。
       const languageAt = prompt.indexOf('所有思考过程和临时输出都必须使用中文')
       const editAt = prompt.indexOf('编辑或修改文件时，必须使用专门的编辑文件工具')
       const inlineAt = prompt.indexOf('优先直接内联执行')
+      const digestAt = prompt.indexOf('**必须用中文思考和输出')
       const toolAt = prompt.indexOf('Use the read tool')
       check(languageAt > 0 && toolAt > 0 && languageAt < toolAt,
         '中文规则排在官方工具说明之前', `language@${languageAt} tool@${toolAt}`)
+      check(digestAt > 0 && digestAt < languageAt,
+        '加粗总纲排在细则之前(同段内)', `digest@${digestAt} language@${languageAt}`)
       check(editAt > languageAt, '编辑工具规则排在中文规则之后', `edit@${editAt}`)
       check(inlineAt > editAt, '内联执行规则排在编辑工具规则之后', `inline@${inlineAt}`)
       check(inlineAt > 0 && inlineAt < toolAt, '内联执行规则也排在官方工具说明之前',
