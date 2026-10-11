@@ -42,9 +42,10 @@ const check = (ok, label, detail = '') => {
 
 /**
  * 桩 systemPrompt 注册表:按上游语义保存 name → { order, text }。
- * `getSectionOrder` 直接回答仓库里那三档锚点(此处只用得上 TOOL_BASH)。
+ * `getSectionOrder` 直接回答仓库里那两档锚点(工具规则用 TOOL_BASH,语言规则用
+ * DEPLOYMENT_PERSONA_SUFFIX)。
  */
-function makeSystemPrompt({ orders = { TOOL_BASH: 1000 } } = {}) {
+function makeSystemPrompt({ orders = { TOOL_BASH: 1000, DEPLOYMENT_PERSONA_SUFFIX: 10200 } } = {}) {
   const registered = new Map()
   return {
     registered,
@@ -163,6 +164,20 @@ console.log('\n[2] 提示词文本逐字钉住')
     '中文规则含"所有思考过程和临时输出都必须使用中文"')
   check(/代码|符号/.test(text.CHINESE_RULE_TEXT) && text.CHINESE_RULE_TEXT.includes('不翻译、不改写'),
     '中文规则显式豁免代码与符号(不翻译、不改写)')
+  // 「思考」必须显式绑定到推理流——实测推理流的中文密度远低于可见输出,
+  // 所以规则必须说清"思考"不只是给用户看的那部分。
+  check(text.CHINESE_RULE_TEXT.includes('「思考」指的是你的推理过程本身'),
+    '中文规则把「思考」显式绑定到推理过程本身')
+  check(text.CHINESE_RULE_TEXT.includes('不只是你展示给用户的那部分'),
+    '中文规则区分推理流与"展示给用户的那部分"')
+  check(text.CHINESE_RULE_TEXT.includes('即使上下文中其他内容都是英文')
+    && text.CHINESE_RULE_TEXT.includes('即使你在分析英文文件或英文报错'),
+    '中文规则声明上下文语言不影响推理语言(英文上下文/英文文件/英文报错)')
+  // 点名实测观察到的滑落模式:纯英文块几乎全是 "Let me…" 式动作规划。
+  check(text.CHINESE_RULE_TEXT.includes('Let me check'), '中文规则点名实测的 "Let me check" 滑落模式')
+  check(text.CHINESE_RULE_TEXT.includes('Let me look at') && text.CHINESE_RULE_TEXT.includes('Now I need to'),
+    '中文规则点名多例英文下一步计划句式')
+  check(text.CHINESE_RULE_TEXT.includes('典型违规'), '中文规则把这些句式标为"典型违规"')
   check(text.EDIT_TOOL_RULE_TEXT.includes('必须使用专门的编辑文件工具'),
     '编辑规则含"必须使用专门的编辑文件工具"')
   check(text.EDIT_TOOL_RULE_TEXT.includes('禁止使用命令行或脚本'),
@@ -188,7 +203,7 @@ console.log('\n[2] 提示词文本逐字钉住')
   // 总纲只准复述、不准新增要求:它讲到的每个概念,细则里都必须能对上。
   // 用概念词表而不是子串比对——总纲本就是凝练改写,不该要求逐字复述细则。
   const CONCEPTS = {
-    CHINESE_RULE_TEXT: ['中文', '代码', '标识符'],
+    CHINESE_RULE_TEXT: ['中文', '代码', '标识符', '符号', '输出'],
     EDIT_TOOL_RULE_TEXT: ['编辑文件工具', '命令', '脚本', '检验'],
     INLINE_SCRIPT_RULE_TEXT: ['内联执行', '临时文件', '长期留存'],
   }
@@ -201,30 +216,69 @@ console.log('\n[2] 提示词文本逐字钉住')
     check(absentInDetail.length === 0, `${name} 核心概念在细则中都有落点`, absentInDetail.join(' / '))
   }
 
-  // 段落顺序:语言规则在前,工具规则居中,内联规则在最后(工具规则的细化)。
-  const all = text.buildSections({ chinese: true, editTool: true, inlineScript: true, anchorOrder: 1000 })
+  // 段落布局:工具规则(编辑/内联)排在官方工具说明前;语言规则排在提示词最末尾。
+  // 两组锚点不同是有意的——理由见 prompt-text.js 的 TAIL_ORDER_OFFSET。
+  const ARGS = { chinese: true, editTool: true, inlineScript: true, anchorOrder: 1000, tailAnchorOrder: 10200 }
+  const all = text.buildSections(ARGS)
   check(all.length === 3, '三条规则都开时产生 3 段', String(all.length))
-  check(all[0].name === text.CHINESE_RULE_SECTION
-    && all[1].name === text.EDIT_TOOL_RULE_SECTION
-    && all[2].name === text.INLINE_SCRIPT_RULE_SECTION,
-    '段落顺序:语言 → 编辑工具 → 内联执行')
-  check(all[0].order < all[1].order && all[1].order < all[2].order,
-    `三段 order 严格递增(${all[0].order} < ${all[1].order} < ${all[2].order})`)
-  check(all[0].order === 1000 + text.SECTION_ORDER_OFFSET, 'order 锚定 TOOL_BASH + OFFSET', String(all[0].order))
-  check(all.every((s) => s.order < 1000), '三段都排在首个官方工具段(TOOL_BASH=1000)之前')
-  const both = text.buildSections({ chinese: true, editTool: true, inlineScript: false, anchorOrder: 1000 })
+  const byName = Object.fromEntries(all.map((s) => [s.name, s]))
+  const toolOrder = 1000 + text.SECTION_ORDER_OFFSET
+  const tailOrder = 10200 + text.TAIL_ORDER_OFFSET
+  check(byName[text.EDIT_TOOL_RULE_SECTION]?.order === toolOrder,
+    `编辑规则 order = TOOL_BASH + OFFSET (${toolOrder})`, String(byName[text.EDIT_TOOL_RULE_SECTION]?.order))
+  check(byName[text.INLINE_SCRIPT_RULE_SECTION]?.order === toolOrder + 1,
+    `内联规则紧随编辑规则 (${toolOrder + 1})`, String(byName[text.INLINE_SCRIPT_RULE_SECTION]?.order))
+  check(byName[text.CHINESE_RULE_SECTION]?.order === tailOrder,
+    `语言规则 order = PERSONA_SUFFIX + TAIL_OFFSET (${tailOrder})`, String(byName[text.CHINESE_RULE_SECTION]?.order))
+  check(toolOrder < 1000 && toolOrder + 1 < 1000,
+    '编辑/内联两条都排在首个官方工具段(TOOL_BASH=1000)之前')
+  // 尾部锚点 10200 是注册表最后一档(DEPLOYMENT_PERSONA_SUFFIX)。
+  check(tailOrder > 10200, '语言规则排在注册表最后一档(PERSONA_SUFFIX)之后,即提示词最末尾')
+  check(tailOrder > toolOrder + 1, '语言规则确实排在两条工具规则之后(不是夹在它们中间)')
+  // 列表顺序仍是"插件贡献的规则"的稳定读序:工具规则在前、语言规则在后。
+  check(all[0].name === text.EDIT_TOOL_RULE_SECTION
+    && all[1].name === text.INLINE_SCRIPT_RULE_SECTION
+    && all[2].name === text.CHINESE_RULE_SECTION,
+    '返回列表顺序:编辑工具 → 内联执行 → 语言(与 order 一致)')
+
+  // 渲染后的实际排布:语言规则必须落在最后一条。
+  {
+    const mounted = mount()
+    const rendered = render(mounted.registry.registered)
+    const lines = rendered.split('\n\n')
+    check(lines.length === 3, '三段落渲染后是 3 块', String(lines.length))
+    check(lines[lines.length - 1].startsWith('**必须用中文思考和输出'),
+      '渲染后语言规则是最后一块(recency 生效)', lines[lines.length - 1]?.slice(0, 30))
+    check(lines[0].startsWith('**修改文件必须用编辑文件工具'),
+      '渲染后编辑规则在最前', lines[0]?.slice(0, 30))
+  }
+
+  // 关掉任意组合时的段落数与 order 连续性。
+  const both = text.buildSections({ ...ARGS, inlineScript: false })
   check(both.length === 2, '只关内联规则时产生 2 段', String(both.length))
-  check(both[0].order < both[1].order, `两段 order 递增(${both[0].order} < ${both[1].order})`)
-  check(text.buildSections({ chinese: false, editTool: true, inlineScript: true, anchorOrder: 1000 }).length === 2,
-    '只关语言规则时产生 2 段')
-  check(text.buildSections({ chinese: true, editTool: false, inlineScript: false, anchorOrder: 1000 }).length === 1,
+  check(both.find((s) => s.name === text.EDIT_TOOL_RULE_SECTION).order === toolOrder
+    && both.find((s) => s.name === text.CHINESE_RULE_SECTION).order === tailOrder,
+    '关掉内联规则时编辑/语言两段 order 不变')
+  check(text.buildSections({ ...ARGS, chinese: false }).length === 2, '只关语言规则时产生 2 段')
+  check(text.buildSections({ ...ARGS, editTool: false, inlineScript: false }).length === 1,
     '只开语言规则时产生 1 段')
-  check(text.buildSections({ chinese: false, editTool: false, inlineScript: false, anchorOrder: 1000 }).length === 0,
+  check(text.buildSections({ ...ARGS, chinese: false }).every((s) => s.order < 1000),
+    '关掉语言规则后剩余两段都在工具段之前')
+  check(text.buildSections({ ...ARGS, chinese: false, editTool: false, inlineScript: false }).length === 0,
     '三条都关时不产生段落')
-  // 关掉中间那段的 order 不留空洞:剩下两段仍严格递增且从锚点起算。
-  const gap = text.buildSections({ chinese: true, editTool: false, inlineScript: true, anchorOrder: 1000 })
-  check(gap.length === 2 && gap[0].order === 1000 + text.SECTION_ORDER_OFFSET && gap[1].order === gap[0].order + 1,
-    '关掉中间规则后 order 仍连续(不留空洞)', gap.map((s) => s.order).join(','))
+  // 关掉中间那段的 order 不留空洞:内联规则顶到编辑规则的位置上。
+  const gap = text.buildSections({ ...ARGS, editTool: false })
+  check(gap.find((s) => s.name === text.INLINE_SCRIPT_RULE_SECTION).order === toolOrder,
+    '关掉编辑规则后内联规则顶到同一位置(工具规则间不留 order 空洞)',
+    String(gap.find((s) => s.name === text.INLINE_SCRIPT_RULE_SECTION).order))
+
+  // 尾部锚点无法解析时,宁可**不注册**语言规则,也不把它塞到提示词中间:
+  // 一个静默落错位置的语言规则比缺席更糟(用户以为它在生效)。
+  const noTail = text.buildSections({ ...ARGS, tailAnchorOrder: Number.NaN })
+  check(noTail.length === 2 && noTail.every((s) => s.name !== text.CHINESE_RULE_SECTION),
+    '尾部锚点不可解析时不产出语言规则(而非落到中间)', noTail.map((s) => s.name).join(','))
+  check(text.buildSections({ ...ARGS, tailAnchorOrder: undefined }).every((s) => s.name !== text.CHINESE_RULE_SECTION),
+    'tailAnchorOrder 缺省时同样不产出语言规则')
 }
 
 // ── 3. 默认全开与清单导出 ────────────────────────────────────────────────────
@@ -340,15 +394,18 @@ console.log('\n[6] 卸载后注册表干净')
 // ── 7. 锚点回退与注册表异常面 ────────────────────────────────────────────────
 console.log('\n[7] 锚点回退与健壮性')
 {
-  // 自定义锚点被跟随(证明不是写死 1000)。
-  const custom = mount({ orders: { TOOL_BASH: 4242 } })
-  const section = custom.registry.registered.get(text.CHINESE_RULE_SECTION)
+  // 自定义锚点被跟随(证明不是写死 1000 / 10200)。
+  const custom = mount({ orders: { TOOL_BASH: 4242, DEPLOYMENT_PERSONA_SUFFIX: 9000 } })
+  const section = custom.registry.registered.get(text.EDIT_TOOL_RULE_SECTION)
   check(section.order === 4242 + text.SECTION_ORDER_OFFSET, '跟随注册表实际返回的 TOOL_BASH order', String(section.order))
   const inlineSection = custom.registry.registered.get(text.INLINE_SCRIPT_RULE_SECTION)
-  check(inlineSection.order === 4242 + text.SECTION_ORDER_OFFSET + 2,
-    '内联段同样跟随锚点(锚点 +2)', String(inlineSection.order))
+  check(inlineSection.order === 4242 + text.SECTION_ORDER_OFFSET + 1,
+    '内联段同样跟随锚点(锚点 +1)', String(inlineSection.order))
+  const tailSection = custom.registry.registered.get(text.CHINESE_RULE_SECTION)
+  check(tailSection.order === 9000 + text.TAIL_ORDER_OFFSET,
+    '语言段跟随注册表实际返回的 DEPLOYMENT_PERSONA_SUFFIX order', String(tailSection.order))
 
-  // getSectionOrder 抛异常时回退到 1000,而不是让 apply 挂掉。
+  // getSectionOrder 抛异常时:工具规则回退到 1000,语言规则则不注册(见下一条)。
   const throwing = {
     getSectionOrder: () => { throw new Error('registry exploded') },
     section: () => () => {},
@@ -356,14 +413,26 @@ console.log('\n[7] 锚点回退与健壮性')
   const { ctx: ctxA } = makeCtx({ services: { systemPrompt: throwing } })
   let threw
   try { index.apply(ctxA, makeConfig({})) } catch (error) { threw = error }
-  check(threw === undefined, 'getSectionOrder 抛异常时 apply 不挂(回退锚点)')
+  check(threw === undefined, 'getSectionOrder 抛异常时 apply 不挂(工具规则回退锚点)')
 
-  // getSectionOrder 返回非有限值时同样回退。
+  // getSectionOrder 返回非有限值时:工具规则回退,语言规则不注册。
   const nan = { getSectionOrder: () => Number.NaN, section: () => () => {} }
   const { ctx: ctxB } = makeCtx({ services: { systemPrompt: nan } })
   threw = undefined
   try { index.apply(ctxB, makeConfig({})) } catch (error) { threw = error }
   check(threw === undefined, 'getSectionOrder 返回 NaN 时 apply 不挂')
+
+  // 尾部锚点不可得时,语言规则**缺席**而不是落到提示词中间。
+  const partial = makeSystemPrompt({ orders: { TOOL_BASH: 1000 } })
+  const { ctx: ctxC } = makeCtx({ services: { systemPrompt: partial.service } })
+  threw = undefined
+  try { index.apply(ctxC, makeConfig({})) } catch (error) { threw = error }
+  check(threw === undefined, '尾部锚点缺失时 apply 仍成功')
+  check(partial.registered.size === 2, '尾部锚点缺失时只注册两条工具规则', String(partial.registered.size))
+  check(!partial.registered.has(text.CHINESE_RULE_SECTION),
+    '尾部锚点缺失时语言规则不注册(宁缺勿错位)')
+  check([...partial.registered.values()].every((s) => s.order < 1000),
+    '尾部锚点缺失时注册的两段仍在工具段之前')
 
   // settings 服务缺席时,表单声明被吞成 warn,段落注册照旧。
   const registry = makeSystemPrompt({})

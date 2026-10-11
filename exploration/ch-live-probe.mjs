@@ -173,20 +173,34 @@ console.log('\n[3] 真实回合:规则是否进入系统提示词')
         'system/message 里逐字出现内联规则的加粗总纲')
       check(sys?.event?.data?.message?.source?.kind === 'system-prompt',
         'system/message 的来源是 system-prompt(证明走的是注册表装配)')
-      // 位置:三段都应排在首个官方工具说明之前(TOOL_READ 那句 "Use the read tool")。
+      // 位置:两组规则锚定在两个不同的槽位,活体判据也随之分成两族。
+      //   · 工具规则(编辑/内联)锚 TOOL_BASH − 40 → 排在首个官方工具说明
+      //     (TOOL_READ 那句 "Use the read tool")之前;
+      //   · 语言规则锚 DEPLOYMENT_PERSONA_SUFFIX + 1 → 排在**最末尾**。
+      // 这正是 prompt-text.js 的 TAIL_ORDER_OFFSET 记录的那次位置拆分:工具规则约束的是
+      // 模型马上要用的机制,必须先读;语言规则的对立面是稀释,只能靠 recency。
       const languageAt = prompt.indexOf('所有思考过程和临时输出都必须使用中文')
       const editAt = prompt.indexOf('编辑或修改文件时，必须使用专门的编辑文件工具')
       const inlineAt = prompt.indexOf('优先直接内联执行')
       const digestAt = prompt.indexOf('**必须用中文思考和输出')
       const toolAt = prompt.indexOf('Use the read tool')
-      check(languageAt > 0 && toolAt > 0 && languageAt < toolAt,
-        '中文规则排在官方工具说明之前', `language@${languageAt} tool@${toolAt}`)
-      check(digestAt > 0 && digestAt < languageAt,
-        '加粗总纲排在细则之前(同段内)', `digest@${digestAt} language@${languageAt}`)
-      check(editAt > languageAt, '编辑工具规则排在中文规则之后', `edit@${editAt}`)
-      check(inlineAt > editAt, '内联执行规则排在编辑工具规则之后', `inline@${inlineAt}`)
+      check(editAt > 0 && toolAt > 0 && editAt < toolAt,
+        '编辑工具规则排在官方工具说明之前', `edit@${editAt} tool@${toolAt}`)
       check(inlineAt > 0 && inlineAt < toolAt, '内联执行规则也排在官方工具说明之前',
         `inline@${inlineAt} tool@${toolAt}`)
+      check(inlineAt > editAt, '内联执行规则排在编辑工具规则之后',
+        `edit@${editAt} inline@${inlineAt}`)
+      check(languageAt > 0 && toolAt > 0 && languageAt > toolAt,
+        '中文规则排在官方工具说明之后(锚在提示词尾部)', `language@${languageAt} tool@${toolAt}`)
+      check(languageAt > editAt && languageAt > inlineAt,
+        '中文规则排在两条工具规则之后', `language@${languageAt} edit@${editAt} inline@${inlineAt}`)
+      check(digestAt > 0 && digestAt < languageAt,
+        '加粗总纲排在细则之前(同段内)', `digest@${digestAt} language@${languageAt}`)
+      // "最末尾"这条不能只看它排在工具说明之后:一个落在提示词中段的中文规则同样满足
+      // 前两条。它必须落在整个提示词的后半——首尾之间没有更多官方英文内容插在它后面。
+      check(languageAt > prompt.length / 2,
+        '中文规则落在系统提示词后半(尾部锚点未被中间槽位挤走)',
+        `language@${languageAt} len@${prompt.length}`)
 
       // 软判据:模型自己在回答里复述了这些规则(说明它确实读到了)。
       const assistant = (page.records ?? []).find((r) => r?.event?.type === 'assistant/message')
