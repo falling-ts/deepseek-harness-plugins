@@ -72,7 +72,7 @@ diffstat：`15 files changed, 360 insertions(+), 413 deletions(-)`。
 
 ```powershell
 # 本次实际执行的适配脚本（对 harness 根目录）
-node exploration\migrate-piai-test-model-ids.mjs D:\deepseek-harness-plugins\deepseek-harness
+node exploration\migrate-piai-test-model-ids.mjs D:\dsh-s\deepseek-harness
 # 升级前的隔离彩排（改完即弃，不碰活体）
 powershell -NoProfile -ExecutionPolicy Bypass -File exploration\rehearse-piai-0871.ps1
 ```

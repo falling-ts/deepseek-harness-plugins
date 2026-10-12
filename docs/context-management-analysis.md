@@ -360,7 +360,7 @@ token meter 内部把 surface 表示为位置化的 `TokenSurfaceNode[] = {seq, 
 │   ├── --D-DSH--/                     # cwd = D:\DSH（反斜杠/冒号被转义）
 │   │   └── session-<uuid>/
 │   │       └── session.jsonl.zstd     # 唯一事实来源（zstd 帧容器）
-│   ├── --D-deepseek-harness-plugins--/
+│   ├── --D-dsh-s--/
 │   │   └── session-<uuid>/session.jsonl.zstd   # 含子代理会话（按子代理 session id 命名）
 │   └── …
 ├── storages/                          # 派生状态缓存（非事实来源）
@@ -378,7 +378,7 @@ token meter 内部把 surface 表示为位置化的 `TokenSurfaceNode[] = {seq, 
 ```
 
 - **目录键 = 转义后的 cwd**：`D:\DSH` → `--D-DSH--`（路径分隔符与盘符冒号被转义成 `--`）。
-- **子代理会话**存放在**父会话 cwd 目录**下，以子代理 session id 命名（实测：5 个子代理的 `session.jsonl.zstd` 都在 `--D-deepseek-harness-plugins--/` 下持续增长）。
+- **子代理会话**存放在**父会话 cwd 目录**下，以子代理 session id 命名（实测：5 个子代理的 `session.jsonl.zstd` 都在 `--D-dsh-s--/` 下持续增长；旧目录名 `--D-deepseek-harness-plugins--` 为改名前历史会话）。
 
 **路径/命名约定**（`packages/session/session-persistence-jsonl/src/format.ts`）：
 - **基础目录** = `Config.root`（`index.ts:60`，**必填、无默认**——避免进程 cwd 变化散落文件）。

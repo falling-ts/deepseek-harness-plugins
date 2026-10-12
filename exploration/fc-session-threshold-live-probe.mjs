@@ -13,7 +13,7 @@
 // Run: node exploration/fc-session-threshold-live-probe.mjs [port]
 import { createRequire } from 'node:module'
 
-const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/dsh-s/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3080)
@@ -199,7 +199,7 @@ try {
       'the other session is untouched by this session\'s override', String(otherChip && otherChip.value))
   }
 
-  await page.screenshot({ path: 'D:/AI/deepseek-harness-plugins/exploration/fc-session-threshold-chip.png' })
+  await page.screenshot({ path: 'D:/AI/dsh-s/exploration/fc-session-threshold-chip.png' })
   check(errors.length === 0, 'no page errors across the whole run', errors.slice(0, 3).join(' | '))
   // `changes.summary` belongs to the workspace-changes (changed-files) unit: it 404s
   // for a turn seq that recorded no changeset, which is the normal answer for a

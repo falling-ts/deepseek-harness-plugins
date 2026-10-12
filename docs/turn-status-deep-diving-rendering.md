@@ -113,7 +113,7 @@ textId 未知回退、多会话并贴。
 ## 五、驱动脚本
 
 ```
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs [PORT] [--sid=<id>] [verbs...]
+node D:\dsh-s\exploration\fcdrivestatus.cjs [PORT] [--sid=<id>] [verbs...]
 ```
 
 | 动词 | 作用 | wire 方法 |
@@ -155,14 +155,14 @@ node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs [PORT] [--sid=<id
 
 ```bash
 # 1. 冒烟：拉会话表（running 的行就是正在跑的那个）
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 smoke
+node D:\dsh-s\exploration\fcdrivestatus.cjs 3080 smoke
 
 # 2. 读计时锚点：最新 turn/start 时间戳
-node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 anchor
+node D:\dsh-s\exploration\fcdrivestatus.cjs 3080 anchor
 
 # 3. 贴皮行为（真实实现 + DOM 桩，12 项）
-node D:\deepseek-harness-plugins\exploration\fc-livetext-prefix-probe.mjs
+node D:\dsh-s\exploration\fc-livetext-prefix-probe.mjs
 
 # 4. 核对官方文案与结构
-rg "deepDiving" D:\deepseek-harness-plugins\deepseek-harness\packages\client\ui-chat\src
+rg "deepDiving" D:\dsh-s\deepseek-harness\packages\client\ui-chat\src
 ```

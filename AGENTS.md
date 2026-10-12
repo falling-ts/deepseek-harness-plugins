@@ -1,4 +1,4 @@
-# AGENTS.md — deepseek-harness-plugins（根工作区）
+# AGENTS.md — dsh-s（根工作区）
 
 ## 工具使用注意（本会话 shell 实测为 Windows PowerShell 5.1）
 
@@ -77,7 +77,7 @@
 ## 仓库性质
 
 本仓库是**工作区容器**（workspace container）：不含业务源码，只跟踪
-子模块指针（gitlink）与工作区级文件。远程：`git@github.com:falling-ts/deepseek-harness-plugins.git`（branch `main`）。
+子模块指针（gitlink）与工作区级文件。远程：`git@github.com:falling-ts/dsh-s.git`（branch `main`；原仓库名 `deepseek-harness-plugins` 已改名，GitHub 会重定向旧名）。
 
 ## 目录结构
 
@@ -100,7 +100,7 @@
   `git add <子模块目录> && git commit` 移动指针；未移动指针前根仓库 `status` 会显示子模块 modified。
 - `.gitmodules` 的 `branch` 是该子模块的跟踪分支，可用
   `git submodule update --remote` 沿分支前进。
-- 新机器克隆：`git clone --recurse-submodules git@github.com:falling-ts/deepseek-harness-plugins.git`。
+- 新机器克隆：`git clone --recurse-submodules git@github.com:falling-ts/dsh-s.git`。
 - 不要删除子模块内部的 `.git`，不要把子模块内容吸收进根仓库，
   也不要绕过子模块直接向子仓库的上游（`deepseek-ai/*`）推送。
 
@@ -874,13 +874,13 @@ llm/adapters-updated    settings/document-updated
 
 ## 探测 / 驱动脚本：集中在 `exploration/`
 
-本工作区早期的探测与 wire 驱动脚本现已**集中存放在 `D:\deepseek-harness-plugins\exploration\`**
+本工作区早期的探测与 wire 驱动脚本现已**集中存放在 `D:\dsh-s\exploration\`**
 （不再散落在工作区根目录）。它们是独立、可重复运行的 `.cjs` / `.mjs` 探针，
 不属于任何插件源码，仅供复现实测结论与驱动线上会话。
 
 - 典型用法（示例）：
-  `node D:\deepseek-harness-plugins\exploration\fcprobe8080.cjs`
-  `node D:\deepseek-harness-plugins\exploration\fcdrivestatus.cjs 3080 smoke anchor`
+  `node D:\dsh-s\exploration\fcprobe8080.cjs`
+  `node D:\dsh-s\exploration\fcdrivestatus.cjs 3080 smoke anchor`
 - 引用这些脚本的文档一律指向 `exploration/` 下的新路径。
 - 个别文件名带历史后缀（如 `fcwalk.dry.cjs` / `fcwalk.mjs` / `fcwalk2.mjs`、
   `fcbracecheck.cjs` / `fcbracecheck2.mjs`），保留原名以便对照既有笔记，勿据此推断功能。

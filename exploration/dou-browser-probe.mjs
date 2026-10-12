@@ -12,7 +12,7 @@
  * Run: node exploration/dou-browser-probe.mjs [port]
  */
 import { createRequire } from 'node:module'
-const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/dsh-s/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3080)
@@ -116,9 +116,9 @@ const report = await page.evaluate(() => {
 
 console.log(JSON.stringify(report, null, 2))
 
-await page.screenshot({ path: 'D:/AI/deepseek-harness-plugins/exploration/dou-shot-full.png' })
+await page.screenshot({ path: 'D:/AI/dsh-s/exploration/dou-shot-full.png' })
 await page.screenshot({
-  path: 'D:/AI/deepseek-harness-plugins/exploration/dou-shot-topright.png',
+  path: 'D:/AI/dsh-s/exploration/dou-shot-topright.png',
   clip: { x: 900, y: 0, width: 500, height: 220 },
 })
 

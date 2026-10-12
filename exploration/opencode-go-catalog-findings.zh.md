@@ -157,9 +157,9 @@ has deepseek-v4.1-flash: false
 ## 复现命令
 
 ```
-cd D:\deepseek-harness-plugins\deepseek-harness
+cd D:\dsh-s\deepseek-harness
 # 当前实际提供的 opencode-go 目录（等价于 GUI 会列的那份）
-node --input-type=module -e "const a=await import('file:///D:/deepseek-harness-plugins/deepseek-harness/node_modules/.pnpm/@earendil-works+pi-ai@0.85._a68c33b4430d43f3230a6ca4636f469a/node_modules/@earendil-works/pi-ai/dist/providers/all.js');console.log(a.getBuiltinModels('opencode-go').map(m=>m.id).join('\n'))"
+node --input-type=module -e "const a=await import('file:///D:/dsh-s/deepseek-harness/node_modules/.pnpm/@earendil-works+pi-ai@0.85._a68c33b4430d43f3230a6ca4636f469a/node_modules/@earendil-works/pi-ai/dist/providers/all.js');console.log(a.getBuiltinModels('opencode-go').map(m=>m.id).join('\n'))"
 # 上游各版本的目录（看 v4.1-flash 从哪版开始有）
 curl -s https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@0.87.1/dist/providers/data/opencode-go.json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.stringify(JSON.parse(s)['openai-completions'].models['deepseek-v4.1-flash'],null,2)))"
 ```

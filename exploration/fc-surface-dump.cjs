@@ -5,7 +5,7 @@
 const fs = require('fs')
 const { zstdDecompressSync } = require('node:zlib')
 
-const FILE = process.argv[2] || 'C:/Users/zghyu/.dsh/sessions/--D-deepseek-harness-plugins--/session-b8dc3649-8d92-4ded-94fe-4c37111a3393/session.jsonl.zstd'
+const FILE = process.argv[2] || 'C:/Users/zghyu/.dsh/sessions/--D-dsh-s--/session-b8dc3649-8d92-4ded-94fe-4c37111a3393/session.jsonl.zstd'
 const buf = fs.readFileSync(FILE)
 const MAGIC = Buffer.from([0x28, 0xB5, 0x2F, 0xFD])
 

@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const zlib = require('node:zlib');
 
 const FILE = process.argv[2] ||
-  'C:\\Users\\zghyu\\.dsh\\sessions\\--D-deepseek-harness-plugins--\\session-db44b595-dafc-4b8a-8d0d-c8c2d63e6a85\\session.jsonl.zstd';
+  'C:\\Users\\zghyu\\.dsh\\sessions\\--D-dsh-s--\\session-db44b595-dafc-4b8a-8d0d-c8c2d63e6a85\\session.jsonl.zstd';
 const TARGET_SEQ = parseInt(process.argv[3] || '2264', 10);
 const WINDOW = 4; // how many records on each side to list in the index
 

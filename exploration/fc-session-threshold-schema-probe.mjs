@@ -10,7 +10,7 @@
 //
 // This runs the REAL plugin schema against the REAL harness predicate.
 //
-// Run: node --import file:///D:/AI/deepseek-harness-plugins/deepseek-harness/node_modules/tsx/dist/esm/index.mjs exploration/fc-session-threshold-schema-probe.mjs
+// Run: node --import file:///D:/AI/dsh-s/deepseek-harness/node_modules/tsx/dist/esm/index.mjs exploration/fc-session-threshold-schema-probe.mjs
 import fs from 'node:fs'
 import { buildConfigSchema } from '../dsh-force-compact/src/core/settings.js'
 import { isVolatilePath } from '../deepseek-harness/packages/settings/settings/src/schema.ts'

@@ -6,7 +6,7 @@
 //
 // Run: node exploration/fc-session-threshold-mode-probe.mjs   (needs 3080 up)
 import { createRequire } from 'node:module'
-const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/dsh-s/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -124,7 +124,7 @@ try {
   const restored = await chipOf(page)
   check(restored !== null && restored.label === (detailed && detailed.label), 'the chip is unaffected by the round trip', restored && restored.label)
 
-  await page.screenshot({ path: 'D:/AI/deepseek-harness-plugins/exploration/fc-session-threshold-mode.png' })
+  await page.screenshot({ path: 'D:/AI/dsh-s/exploration/fc-session-threshold-mode.png' })
   check(errors.length === 0, 'no page errors', errors.slice(0, 3).join(' | '))
 } finally {
   if (browser) await browser.close()

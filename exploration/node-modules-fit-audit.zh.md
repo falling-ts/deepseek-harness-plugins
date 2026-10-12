@@ -1,6 +1,6 @@
 # harness node_modules 适配性审计（2026-09-23）
 
-对象：`D:\deepseek-harness-plugins\deepseek-harness`
+对象：`D:\dsh-s\deepseek-harness`
 - HEAD = `00102833dfaee1da9f48a3a8eae9d34005a75218`，tag `dsh-v0.1.7-alpha.2`
 - 与 `origin/master` 差分 `0 0`（即正好在上游 master 尖端），子模块工作树干净
 - web 实例的 3080 由**这棵树**直接启动（`node --import tsx/esm apps/cli/src/bin.ts web`），所以下面的结论就是在跑的那份 node_modules
@@ -155,11 +155,11 @@ vendor/cordis、packages/core/agent : 完好
 ## 复现命令
 
 ```
-cd D:\deepseek-harness-plugins\deepseek-harness
+cd D:\dsh-s\deepseek-harness
 $env:CI='true'; pnpm install --frozen-lockfile
-node D:\deepseek-harness-plugins\exploration\node-modules-fit-audit.mjs
-node D:\deepseek-harness-plugins\exploration\node-modules-link-integrity.mjs
+node D:\dsh-s\exploration\node-modules-fit-audit.mjs
+node D:\dsh-s\exploration\node-modules-link-integrity.mjs
 pnpm outdated -r --format list              # 104 项
 pnpm outdated -r --compatible --format list # 50 项（范围内可升）
-node D:\deepseek-harness-plugins\exploration\plugin-manifest-check.mjs
+node D:\dsh-s\exploration\plugin-manifest-check.mjs
 ```

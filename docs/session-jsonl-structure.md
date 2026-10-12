@@ -2,8 +2,8 @@
 
 > 基于 `deepseek-harness/packages/core/session/src/{types,surface,index,known-event-types}.ts`
 > 与 `packages/llm/llm/src/{types,message}.ts` 的类型定义，以及本工作区三个真实会话
-> （`~/.dsh/sessions/--D-deepseek-harness-plugins--/session-*.jsonl.zstd`、
-> `~/.dsh/sessions/--D-deepseek-harness-plugins-deepseek-harness--/…`）的实测解析
+> （`~/.dsh/sessions/--D-dsh-s--/session-*.jsonl.zstd`（旧目录名 `--D-deepseek-harness-plugins--`，为改名前历史会话）、
+> `~/.dsh/sessions/--D-dsh-s-deepseek-harness--/…`）的实测解析
 > 得出。复现脚本：[`fcdumplogs.cjs`](../fcdumplogs.cjs)。
 
 ---
@@ -338,4 +338,4 @@ interface TokenUsage {
 | `TurnEndReason` / `TodoItem` / `EpochHeader` / `RequestContext` | `types.ts:155-228` |
 | `ContentBlockMap` / `TokenUsage` / `FinishReasonMap` | `deepseek-harness/packages/llm/llm/src/types.ts:99-141, 116-125, 312` |
 | `Message` / `UserMessage` / `AssistantMessage` / `ToolResultMessage` | `deepseek-harness/packages/llm/llm/src/message.ts:128-156` |
-| 实测样例 | `%USERPROFILE%\.dsh\sessions\--D-deepseek-harness-plugins--\session-*.jsonl.zstd`、`--D-deepseek-harness-plugins-deepseek-harness--\session-*.jsonl.zstd`（由 [`fcdumplogs.cjs`](../fcdumplogs.cjs) 解出） |
+| 实测样例 | `%USERPROFILE%\.dsh\sessions\--D-dsh-s--\session-*.jsonl.zstd`、`--D-dsh-s-deepseek-harness--\session-*.jsonl.zstd`（由 [`fcdumplogs.cjs`](../fcdumplogs.cjs) 解出） |

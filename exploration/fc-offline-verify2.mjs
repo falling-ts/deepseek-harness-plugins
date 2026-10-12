@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { zstdDecompressSync } from 'node:zlib'
 import { pathToFileURL } from 'node:url'
 
-const FILE = 'C:/Users/zghyu/.dsh/sessions/--D-deepseek-harness-plugins--/session-b8dc3649-8d92-4ded-94fe-4c37111a3393/session.jsonl.zstd'
+const FILE = 'C:/Users/zghyu/.dsh/sessions/--D-dsh-s--/session-b8dc3649-8d92-4ded-94fe-4c37111a3393/session.jsonl.zstd'
 const data = readFileSync(FILE)
 const spots = []
 for (let i = 0; i < data.length - 4; i += 1) {
@@ -43,8 +43,8 @@ const fakeSession = {
   eventAt(seq) { return bySeq.get(seq) },
 }
 
-const shim = await import(pathToFileURL('D:/AI/deepseek-harness-plugins/dsh-force-compact/src/core/session-events.js').href)
-const pairing = await import(pathToFileURL('D:/AI/deepseek-harness-plugins/dsh-force-compact/src/core/pairing.js').href)
+const shim = await import(pathToFileURL('D:/AI/dsh-s/dsh-force-compact/src/core/session-events.js').href)
+const pairing = await import(pathToFileURL('D:/AI/dsh-s/dsh-force-compact/src/core/pairing.js').href)
 
 const all = shim.sessionEvents(fakeSession)
 console.log('[shim] sessionEvents ->', all.length, 'events (surface', surface.length, 'nodes)')

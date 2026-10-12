@@ -1,4 +1,4 @@
-# deepseek-harness-plugins
+# dsh-s
 
 [English](README.md)
 
@@ -20,8 +20,8 @@ DeepSeek Harness 插件集的工作区容器（workspace container）。本仓�
 ## 快速开始
 
 ```sh
-git clone --recurse-submodules git@github.com:falling-ts/deepseek-harness-plugins.git
-cd deepseek-harness-plugins
+git clone --recurse-submodules git@github.com:falling-ts/dsh-s.git
+cd dsh-s
 bash harness-server.sh   # 在 127.0.0.1:3080 启动 harness web 服务器
 ```
 

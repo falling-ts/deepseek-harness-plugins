@@ -1,4 +1,4 @@
-# deepseek-harness-plugins
+# dsh-s
 
 [中文](README.cn.md)
 
@@ -23,8 +23,8 @@ files.
 ## Getting started
 
 ```sh
-git clone --recurse-submodules git@github.com:falling-ts/deepseek-harness-plugins.git
-cd deepseek-harness-plugins
+git clone --recurse-submodules git@github.com:falling-ts/dsh-s.git
+cd dsh-s
 bash harness-server.sh   # start the harness web server on 127.0.0.1:3080
 ```
 

@@ -319,20 +319,20 @@ export interface HostObservable<T> {
 ```bash
 # 1. 确认 tool/call / tool/result 确实是落盘的两兄弟
 rg "session.append\('tool/(call|result)'" \
-  D:\deepseek-harness-plugins\deepseek-harness\packages\core\agent-loop\src
+  D:\dsh-s\deepseek-harness\packages\core\agent-loop\src
 
 # 2. 确认 tool/call 是 log-only、tool/result 才是 surface
 rg "deriveEventMessage|isSurfaceEligible" \
-  D:\deepseek-harness-plugins\deepseek-harness\packages\core\session\src\surface.ts
+  D:\dsh-s\deepseek-harness\packages\core\session\src\surface.ts
 
 # 3. 找出超时插桩位置
 rg "deadline\(exec\.signal|timeoutOf\(d\.signal" \
-  D:\deepseek-harness-plugins\deepseek-harness\packages\guard\timeout-policy\src
+  D:\dsh-s\deepseek-harness\packages\guard\timeout-policy\src
 
 # 4. 找出进程句柄的两个接口
 rg "interface (ShellProcess|SubprocessHandle)" \
-  D:\deepseek-harness-plugins\deepseek-harness\packages
+  D:\dsh-s\deepseek-harness\packages
 
 # 5. 观察真实会话中 tool/result 携带的 meta（用之前的 fcdumplogs 脚本）
-node D:\deepseek-harness-plugins\exploration\fcdumplogs.cjs --only tool/result --limit 3
+node D:\dsh-s\exploration\fcdumplogs.cjs --only tool/result --limit 3
 ```

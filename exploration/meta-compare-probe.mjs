@@ -6,7 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 // Derive the checkout from this script's own location instead of a hardcoded drive path:
-// the repo has moved once already (D:/deepseek-harness-plugins -> D:/AI/deepseek-harness-plugins).
+// the repo has moved once already (D:/deepseek-harness-plugins -> D:/AI/dsh-s).
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const roots = [

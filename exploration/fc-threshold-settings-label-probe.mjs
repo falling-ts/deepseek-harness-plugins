@@ -4,7 +4,7 @@
 //
 // Run: node exploration/fc-threshold-settings-label-probe.mjs   (needs 3080 up)
 import { createRequire } from 'node:module'
-const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/dsh-s/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -50,7 +50,7 @@ try {
   check(pane.includes('最大摘要数'), '最大摘要数 is untouched')
   if (failed > 0) console.log('\n--- pane text ---\n' + pane.slice(0, 1200))
 
-  await page.screenshot({ path: 'D:/AI/deepseek-harness-plugins/exploration/fc-threshold-settings-label.png' })
+  await page.screenshot({ path: 'D:/AI/dsh-s/exploration/fc-threshold-settings-label.png' })
   check(errors.length === 0, 'no page errors', errors.slice(0, 3).join(' | '))
 } finally {
   if (browser) await browser.close()

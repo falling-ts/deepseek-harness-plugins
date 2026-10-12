@@ -13,12 +13,12 @@
  */
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-const require = createRequire('D:/AI/deepseek-harness-plugins/deepseek-harness/apps/web/package.json')
+const require = createRequire('D:/AI/dsh-s/deepseek-harness/apps/web/package.json')
 const { chromium } = require('playwright')
 
 const PORT = Number(process.argv[2] ?? 3080)
 const BASE = `http://127.0.0.1:${PORT}`
-const OUT = 'D:/AI/deepseek-harness-plugins/exploration'
+const OUT = 'D:/AI/dsh-s/exploration'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let passed = 0
